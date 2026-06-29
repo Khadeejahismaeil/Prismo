@@ -1,0 +1,106 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2820
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 # Prismo \'97 AI-powered UI & UX Screen Analyzer \'97 Product Requirements Document\
+\
+## Product Overview\
+Prismo \'97 AI-powered UI & UX Screen Analyzer helps Junior UI/UX designers, bootcamp students, and product designers who need fast, actionable feedback on app or website screens. by solving: UI designers often need quick feedback on whether a screen is clear, usable, accessible, and visually balanced. Getting feedback from a senior designer takes time, and many issues like weak hierarchy, unclear CTAs, spacing problems, or contrast issues are missed before review. The core AI capability is: The user uploads a UI screenshot. AI analyzes visual hierarchy, spacing, typography, accessibility, CTA clarity, consistency, and usability. It generates a UX score, highlights key issues, suggests specific fixes, and creates a challenge to improve the next version..\
+\
+## Tech Stack\
+- Frontend: Next.js 16 (App Router)\
+- Database & Auth: Supabase (Postgres + RLS + Realtime)\
+- AI: OpenRouter\
+\
+---\
+\
+## MVP \'97 Phase 1\
+\
+### Email & Password Auth\
+**As a** Junior UI/UX designers, bootcamp students, and product designers who need fast, actionable feedback on app or website screens., **I want to** register and sign in with my email and password, **so that** I have full control over my credentials.\
+\
+**Acceptance Criteria:**\
+- [ ] User can register with email + password (min 8 characters)\
+- [ ] Passwords hashed by Supabase Auth \'97 never stored in plain text\
+- [ ] Login fails gracefully with "Invalid credentials" on wrong password\
+- [ ] "Forgot password" flow sends a reset link via email\
+\
+### Live Data Updates\
+**As a** Junior UI/UX designers, bootcamp students, and product designers who need fast, actionable feedback on app or website screens., **I want** the dashboard to update in real-time, **so that** I always see the latest data without refreshing.\
+\
+**Acceptance Criteria:**\
+- [ ] Supabase Realtime channel subscribed on dashboard mount\
+- [ ] New records appear instantly without a page reload\
+- [ ] Channel unsubscribes cleanly on component unmount\
+- [ ] Stale data indicator shown if the connection drops\
+\
+### Image Uploads\
+**As a** Junior UI/UX designers, bootcamp students, and product designers who need fast, actionable feedback on app or website screens., **I want to** upload images, **so that** I can share visual content within the app.\
+\
+**Acceptance Criteria:**\
+- [ ] Images uploaded to Supabase Storage with user-scoped RLS bucket\
+- [ ] File size limited to 5MB; types restricted to jpg, png, webp\
+- [ ] Upload progress bar shown during transfer\
+- [ ] Public URL stored in Supabase database after successful upload\
+\
+### Document Uploads\
+**As a** Junior UI/UX designers, bootcamp students, and product designers who need fast, actionable feedback on app or website screens., **I want to** upload documents, **so that** I can share files with relevant context.\
+\
+**Acceptance Criteria:**\
+- [ ] PDFs and DOCX files uploaded to Supabase Storage\
+- [ ] File size limited to 10MB\
+- [ ] Download link stored in the database after upload\
+- [ ] File type validated before sending\
+\
+### Automatic Image Resizing\
+**As a** Junior UI/UX designers, bootcamp students, and product designers who need fast, actionable feedback on app or website screens., **I want** uploaded images to be automatically resized, **so that** they load quickly without sacrificing quality.\
+\
+**Acceptance Criteria:**\
+- [ ] Supabase Storage image transformation generates thumbnails on the fly\
+- [ ] Thumbnail (200\'d7200) and medium (800px) variants served via transform URL\
+- [ ] Original image preserved in storage\
+- [ ] Page loads use thumbnails; full size loads on expand\
+\
+### Personalized Recommendations\
+**As a** Junior UI/UX designers, bootcamp students, and product designers who need fast, actionable feedback on app or website screens., **I want** personalized recommendations, **so that** I discover content most relevant to me.\
+\
+**Acceptance Criteria:**\
+- [ ] User activity and preferences stored in Supabase\
+- [ ] OpenRouter generates recommendations based on user history\
+- [ ] Recommendations refresh on each visit\
+- [ ] User can dismiss a recommendation ("not interested")\
+\
+### AI Content Generation\
+**As a** Junior UI/UX designers, bootcamp students, and product designers who need fast, actionable feedback on app or website screens., **I want** AI to generate content for me, **so that** I can produce drafts quickly.\
+\
+**Acceptance Criteria:**\
+- [ ] Generation triggered by user action (button click or form submit)\
+- [ ] OpenRouter called with user inputs as prompt context\
+- [ ] Generated content displayed in an editable text area\
+- [ ] User can regenerate or manually edit before saving\
+\
+---\
+\
+## Phase 2 \'97 Post-MVP\
+\
+### Typing Indicators & Read Receipts\
+**As a** Junior UI/UX designers, bootcamp students, and product designers who need fast, actionable feedback on app or website screens., **I want to** see when someone is typing, **so that** I know a response is coming.\
+\
+**Acceptance Criteria:**\
+- [ ] Typing status broadcast via Supabase Realtime presence\
+- [ ] "User is typing\'85" appears within 500ms of keypress\
+- [ ] Indicator disappears 3 seconds after last keypress\
+- [ ] Read receipts show the timestamp of the last seen message\
+\
+### AI Image Analysis\
+**As a** Junior UI/UX designers, bootcamp students, and product designers who need fast, actionable feedback on app or website screens., **I want** AI to analyze uploaded images, **so that** I get instant insights without manual review.\
+\
+**Acceptance Criteria:**\
+- [ ] Image sent to an OpenRouter vision-capable model\
+- [ ] Analysis result stored in Supabase alongside the image record\
+- [ ] Results displayed within 5 seconds of upload\
+- [ ] Analysis can be re-triggered if results are inaccurate\
+}

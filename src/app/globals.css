@@ -1,0 +1,174 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4ef6a;
+  --foreground: #5a3a3f;
+
+  /* Prismo palette */
+  --prismo-bg: #f2ec5e;
+  --wall-left: #edE74f;
+  --wall-right: #d8cc3c;
+  --floor: #f5f0a2;
+  --shadow: #f0b9c0;
+  --skin: #f2a0a8;
+  --skin-dark: #ec90a0;
+  --eye-sclera: #f1e84a;
+  --eye-iris: #4fb0e0;
+  --eye-pupil: #2b6f96;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* ---------- Prismo animations ---------- */
+
+/* Whole-body idle breathing */
+@keyframes prismo-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.012);
+  }
+}
+
+/* Head bob, slightly offset from the body for life */
+@keyframes prismo-head-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(-1.2deg);
+  }
+}
+
+/* Arm wave — rotates about the shoulder */
+@keyframes prismo-wave {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  10% {
+    transform: rotate(8deg);
+  }
+  20% {
+    transform: rotate(-6deg);
+  }
+  30% {
+    transform: rotate(10deg);
+  }
+  40% {
+    transform: rotate(-4deg);
+  }
+  /* hold still for the rest of the loop, then wave again */
+  60%,
+  90% {
+    transform: rotate(-4deg);
+  }
+}
+
+/* Blink — a skin-coloured lid drops over the eye */
+@keyframes prismo-lid {
+  0%,
+  91%,
+  100% {
+    transform: scaleY(0);
+  }
+  94%,
+  96% {
+    transform: scaleY(1);
+  }
+}
+
+/* Iris drift — Prismo glances around */
+@keyframes prismo-look {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(7px, -3px);
+  }
+  55% {
+    transform: translate(-5px, 2px);
+  }
+  80% {
+    transform: translate(3px, 4px);
+  }
+}
+
+/* Shadow pulses gently with the breath */
+@keyframes prismo-shadow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 0.78;
+  }
+}
+
+.prismo-svg {
+  --motion: running;
+}
+
+.prismo-body {
+  transform-box: view-box;
+  transform-origin: 430px 880px;
+  animation: prismo-breathe 4.5s ease-in-out infinite;
+}
+
+.prismo-head {
+  transform-box: view-box;
+  transform-origin: 360px 470px;
+  animation: prismo-head-bob 4.5s ease-in-out infinite;
+}
+
+.prismo-arm {
+  transform-box: view-box;
+  transform-origin: 470px 620px;
+  animation: prismo-wave 4.2s ease-in-out infinite;
+}
+
+.prismo-lid {
+  transform-box: view-box;
+  transform-origin: 372px 398px;
+  animation: prismo-lid 4.8s ease-in-out infinite;
+}
+
+.prismo-iris {
+  transform-box: view-box;
+  transform-origin: 360px 430px;
+  animation: prismo-look 7s ease-in-out infinite;
+}
+
+.prismo-shadow {
+  transform-box: view-box;
+  transform-origin: 300px 880px;
+  animation: prismo-shadow 4.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prismo-body,
+  .prismo-head,
+  .prismo-arm,
+  .prismo-lid,
+  .prismo-iris,
+  .prismo-shadow {
+    animation: none;
+  }
+}
