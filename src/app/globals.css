@@ -1,136 +1,260 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4ef6a;
-  --foreground: #5a3a3f;
+  /* Brand */
+  --pink: #e7929c;
+  --pink-deep: #d4738020;
+  --yellow: #f6f750;
+  --cyan: #73def4;
+  --pickle: #4f7a3a;
+  --pickle-light: #6fa24e;
 
-  /* Official Prismo palette (from the canonical vector) */
-  --skin: #e7929c;
-  --skin-dark: #d97f8b;
+  /* Ink / text */
+  --ink: #36202c;
+  --ink-soft: #6b5560;
+  --ink-faint: #9a8590;
+
+  /* Surfaces */
+  --background: #f7f2e7;
+  --contact-shadow: #c9808f;
+
+  /* Glass */
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-strong: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --glass-shadow: 0 16px 40px -18px rgba(54, 32, 44, 0.45);
+
+  /* Gradients */
+  --grad-primary: linear-gradient(135deg, #ff9fb0 0%, #f7a6e0 50%, #8fb8ff 100%);
+  --grad-cool: linear-gradient(135deg, #73def4 0%, #8fb8ff 100%);
+  --grad-warm: linear-gradient(135deg, #ffd166 0%, #ff9fb0 100%);
+  --grad-score: conic-gradient(from 220deg, #73def4, #8fb8ff, #f7a6e0, #ffd166, #73def4);
+
   --eye-sclera: #f6f750;
   --eye-iris: #73def4;
-  --contact-shadow: #c9808f;
+  --skin: #e7929c;
+  --skin-dark: #d97f8b;
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-ink: var(--ink);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fraunces);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
   background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
-/* ---------- Prismo animations ----------
-   Coordinates are in the canonical vector's space: the eye sits at
-   (130.5, 78) and Prismo stands on the floor at roughly (104, 286). */
+/* Ambient animated gradient-mesh background */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background:
+    radial-gradient(60% 50% at 18% 12%, rgba(246, 247, 80, 0.55), transparent 70%),
+    radial-gradient(55% 45% at 85% 18%, rgba(115, 222, 244, 0.5), transparent 70%),
+    radial-gradient(65% 55% at 80% 90%, rgba(231, 146, 156, 0.55), transparent 70%),
+    radial-gradient(60% 50% at 12% 88%, rgba(247, 166, 224, 0.45), transparent 70%),
+    var(--background);
+}
+.app-bg::before,
+.app-bg::after {
+  content: "";
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.5;
+  mix-blend-mode: screen;
+}
+.app-bg::before {
+  background: radial-gradient(circle, rgba(115, 222, 244, 0.7), transparent 60%);
+  top: -20vmax;
+  left: -10vmax;
+  animation: drift 22s ease-in-out infinite;
+}
+.app-bg::after {
+  background: radial-gradient(circle, rgba(231, 146, 156, 0.7), transparent 60%);
+  bottom: -20vmax;
+  right: -12vmax;
+  animation: drift 26s ease-in-out infinite reverse;
+}
 
-/* Whole-body idle breathing */
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(8vmax, 6vmax) scale(1.12); }
+  66% { transform: translate(-6vmax, 4vmax) scale(0.94); }
+}
+
+/* ---------- Liquid glass ---------- */
+.glass {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.62),
+    rgba(255, 255, 255, 0.38)
+  );
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.glass-strong {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.85),
+    rgba(255, 255, 255, 0.6)
+  );
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Sheen sweep used on hero glass */
+.sheen {
+  position: relative;
+  overflow: hidden;
+}
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.55) 48%,
+    transparent 62%
+  );
+  transform: translateX(-120%);
+  animation: sheen 6s ease-in-out infinite;
+}
+@keyframes sheen {
+  0%, 65% { transform: translateX(-120%); }
+  85%, 100% { transform: translateX(120%); }
+}
+
+/* ---------- Micro-interactions ---------- */
+.press {
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+}
+.press:active {
+  transform: scale(0.95);
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pop {
+  0% { opacity: 0; transform: scale(0.8); }
+  60% { transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.screen-enter > * {
+  animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.screen-enter {
+  animation: fadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger > * { animation: fadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.stagger > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger > *:nth-child(3) { animation-delay: 0.16s; }
+.stagger > *:nth-child(4) { animation-delay: 0.22s; }
+.stagger > *:nth-child(5) { animation-delay: 0.28s; }
+.stagger > *:nth-child(6) { animation-delay: 0.34s; }
+
+/* Issue circle annotation pulse */
+@keyframes ringPulse {
+  0% { transform: scale(0.6); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes ringBreathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(231, 146, 156, 0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(231, 146, 156, 0); }
+}
+
+.text-gradient {
+  background: var(--grad-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---------- Pickle-eating loader ---------- */
+@keyframes chew {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(7deg); }
+}
+@keyframes bring-pickle {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(-6px, 6px) rotate(-6deg); }
+}
+@keyframes crumb {
+  0% { transform: translate(0, 0) scale(1); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(var(--cx, -20px), var(--cy, 16px)) scale(0.4); opacity: 0; }
+}
+.chew { transform-box: view-box; transform-origin: 150px 150px; animation: chew 0.6s ease-in-out infinite; }
+.bring-pickle { transform-box: view-box; transform-origin: 210px 250px; animation: bring-pickle 0.6s ease-in-out infinite; }
+.crumb { animation: crumb 0.7s ease-out infinite; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+
+/* ---------- Prismo mascot idle animations ---------- */
 @keyframes prismo-breathe {
-  0%,
-  100% {
-    transform: translateY(0) scaleY(1);
-  }
-  50% {
-    transform: translateY(-7px) scaleY(1.015);
-  }
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-7px) scaleY(1.015); }
 }
-
-/* Gentle idle sway about the feet — Prismo has no arms to wave, so this
-   gives him a little living wobble instead. */
 @keyframes prismo-sway {
-  0%,
-  100% {
-    transform: rotate(-1.6deg);
-  }
-  50% {
-    transform: rotate(1.6deg);
-  }
+  0%, 100% { transform: rotate(-1.6deg); }
+  50% { transform: rotate(1.6deg); }
 }
-
-/* Blink — a skin-coloured lid drops over the eye */
 @keyframes prismo-lid {
-  0%,
-  90%,
-  100% {
-    transform: scaleY(0);
-  }
-  93.5%,
-  96% {
-    transform: scaleY(1);
-  }
+  0%, 90%, 100% { transform: scaleY(0); }
+  93.5%, 96% { transform: scaleY(1); }
 }
-
-/* Iris drift — Prismo glances around */
 @keyframes prismo-look {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  25% {
-    transform: translate(5px, -2px);
-  }
-  55% {
-    transform: translate(-4px, 1px);
-  }
-  80% {
-    transform: translate(2px, 3px);
-  }
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(5px, -2px); }
+  55% { transform: translate(-4px, 1px); }
+  80% { transform: translate(2px, 3px); }
 }
-
-/* Contact shadow softens as Prismo lifts on the breath */
 @keyframes prismo-contact {
-  0%,
-  100% {
-    transform: scaleX(1);
-    opacity: 0.2;
-  }
-  50% {
-    transform: scaleX(0.94);
-    opacity: 0.14;
-  }
+  0%, 100% { transform: scaleX(1); opacity: 0.2; }
+  50% { transform: scaleX(0.94); opacity: 0.14; }
 }
+.prismo-sway { transform-box: view-box; transform-origin: 104px 286px; animation: prismo-sway 6s ease-in-out infinite; }
+.prismo-breathe { transform-box: view-box; transform-origin: 104px 286px; animation: prismo-breathe 4.5s ease-in-out infinite; }
+.prismo-iris { transform-box: view-box; transform-origin: 130.5px 78px; animation: prismo-look 7s ease-in-out infinite; }
+.prismo-lid { transform-box: view-box; transform-origin: 130.5px 63px; animation: prismo-lid 4.8s ease-in-out infinite; }
+.prismo-contact { transform-box: view-box; transform-origin: 104px 289px; animation: prismo-contact 4.5s ease-in-out infinite; }
 
-.prismo-sway {
-  transform-box: view-box;
-  transform-origin: 104px 286px;
-  animation: prismo-sway 6s ease-in-out infinite;
-}
-
-.prismo-breathe {
-  transform-box: view-box;
-  transform-origin: 104px 286px;
-  animation: prismo-breathe 4.5s ease-in-out infinite;
-}
-
-.prismo-iris {
-  transform-box: view-box;
-  transform-origin: 130.5px 78px;
-  animation: prismo-look 7s ease-in-out infinite;
-}
-
-.prismo-lid {
-  transform-box: view-box;
-  transform-origin: 130.5px 63px;
-  animation: prismo-lid 4.8s ease-in-out infinite;
-}
-
-.prismo-contact {
-  transform-box: view-box;
-  transform-origin: 104px 289px;
-  animation: prismo-contact 4.5s ease-in-out infinite;
-}
+/* hide scrollbars inside the phone */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .prismo-sway,
-  .prismo-breathe,
-  .prismo-iris,
-  .prismo-lid,
-  .prismo-contact {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

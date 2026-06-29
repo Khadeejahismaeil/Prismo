@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Geist } from "next/font/google";
+import { Fraunces } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -7,15 +8,22 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Prismo — AI-powered UI & UX Screen Analyzer",
+  title: "Prismo — AI design reviewer",
   description:
-    "Upload a UI screenshot and Prismo reviews hierarchy, spacing, typography, contrast, and CTA clarity — then scores it and tells you what to fix next.",
+    "Upload a screen and Prismo reviews hierarchy, spacing, contrast and CTA clarity — then scores it and shows you exactly what to fix.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#f7f2e7",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
@@ -26,9 +34,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${fraunces.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full">
+        <div className="app-bg" aria-hidden="true" />
+        {children}
+      </body>
     </html>
   );
 }
