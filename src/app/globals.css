@@ -4,17 +4,12 @@
   --background: #f4ef6a;
   --foreground: #5a3a3f;
 
-  /* Prismo palette */
-  --prismo-bg: #f2ec5e;
-  --wall-left: #edE74f;
-  --wall-right: #d8cc3c;
-  --floor: #f5f0a2;
-  --shadow: #f0b9c0;
-  --skin: #f2a0a8;
-  --skin-dark: #ec90a0;
-  --eye-sclera: #f1e84a;
-  --eye-iris: #4fb0e0;
-  --eye-pupil: #2b6f96;
+  /* Official Prismo palette (from the canonical vector) */
+  --skin: #e7929c;
+  --skin-dark: #d97f8b;
+  --eye-sclera: #f6f750;
+  --eye-iris: #73def4;
+  --contact-shadow: #c9808f;
 }
 
 @theme inline {
@@ -30,63 +25,41 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
-/* ---------- Prismo animations ---------- */
+/* ---------- Prismo animations ----------
+   Coordinates are in the canonical vector's space: the eye sits at
+   (373.5, 78) and Prismo stands on the floor at roughly (349, 286). */
 
 /* Whole-body idle breathing */
 @keyframes prismo-breathe {
   0%,
   100% {
-    transform: translateY(0) scale(1);
+    transform: translateY(0) scaleY(1);
   }
   50% {
-    transform: translateY(-6px) scale(1.012);
+    transform: translateY(-7px) scaleY(1.015);
   }
 }
 
-/* Head bob, slightly offset from the body for life */
-@keyframes prismo-head-bob {
+/* Gentle idle sway about the feet — Prismo has no arms to wave, so this
+   gives him a little living wobble instead. */
+@keyframes prismo-sway {
   0%,
   100% {
-    transform: translateY(0) rotate(0deg);
+    transform: rotate(-1.6deg);
   }
   50% {
-    transform: translateY(-4px) rotate(-1.2deg);
-  }
-}
-
-/* Arm wave — rotates about the shoulder */
-@keyframes prismo-wave {
-  0%,
-  100% {
-    transform: rotate(-4deg);
-  }
-  10% {
-    transform: rotate(8deg);
-  }
-  20% {
-    transform: rotate(-6deg);
-  }
-  30% {
-    transform: rotate(10deg);
-  }
-  40% {
-    transform: rotate(-4deg);
-  }
-  /* hold still for the rest of the loop, then wave again */
-  60%,
-  90% {
-    transform: rotate(-4deg);
+    transform: rotate(1.6deg);
   }
 }
 
 /* Blink — a skin-coloured lid drops over the eye */
 @keyframes prismo-lid {
   0%,
-  91%,
+  90%,
   100% {
     transform: scaleY(0);
   }
-  94%,
+  93.5%,
   96% {
     transform: scaleY(1);
   }
@@ -99,76 +72,65 @@ body {
     transform: translate(0, 0);
   }
   25% {
-    transform: translate(7px, -3px);
+    transform: translate(5px, -2px);
   }
   55% {
-    transform: translate(-5px, 2px);
+    transform: translate(-4px, 1px);
   }
   80% {
-    transform: translate(3px, 4px);
+    transform: translate(2px, 3px);
   }
 }
 
-/* Shadow pulses gently with the breath */
-@keyframes prismo-shadow {
+/* Contact shadow softens as Prismo lifts on the breath */
+@keyframes prismo-contact {
   0%,
   100% {
-    transform: scale(1);
-    opacity: 0.85;
+    transform: scaleX(1);
+    opacity: 0.2;
   }
   50% {
-    transform: scale(1.03);
-    opacity: 0.78;
+    transform: scaleX(0.94);
+    opacity: 0.14;
   }
 }
 
-.prismo-svg {
-  --motion: running;
+.prismo-sway {
+  transform-box: view-box;
+  transform-origin: 349px 286px;
+  animation: prismo-sway 6s ease-in-out infinite;
 }
 
-.prismo-body {
+.prismo-breathe {
   transform-box: view-box;
-  transform-origin: 430px 880px;
+  transform-origin: 349px 286px;
   animation: prismo-breathe 4.5s ease-in-out infinite;
-}
-
-.prismo-head {
-  transform-box: view-box;
-  transform-origin: 360px 470px;
-  animation: prismo-head-bob 4.5s ease-in-out infinite;
-}
-
-.prismo-arm {
-  transform-box: view-box;
-  transform-origin: 470px 620px;
-  animation: prismo-wave 4.2s ease-in-out infinite;
-}
-
-.prismo-lid {
-  transform-box: view-box;
-  transform-origin: 372px 398px;
-  animation: prismo-lid 4.8s ease-in-out infinite;
 }
 
 .prismo-iris {
   transform-box: view-box;
-  transform-origin: 360px 430px;
+  transform-origin: 373.5px 78px;
   animation: prismo-look 7s ease-in-out infinite;
 }
 
-.prismo-shadow {
+.prismo-lid {
   transform-box: view-box;
-  transform-origin: 300px 880px;
-  animation: prismo-shadow 4.5s ease-in-out infinite;
+  transform-origin: 373.5px 63px;
+  animation: prismo-lid 4.8s ease-in-out infinite;
+}
+
+.prismo-contact {
+  transform-box: view-box;
+  transform-origin: 349px 289px;
+  animation: prismo-contact 4.5s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .prismo-body,
-  .prismo-head,
-  .prismo-arm,
-  .prismo-lid,
+  .prismo-sway,
+  .prismo-breathe,
   .prismo-iris,
-  .prismo-shadow {
+  .prismo-lid,
+  .prismo-contact {
     animation: none;
   }
 }

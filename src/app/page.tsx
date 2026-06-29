@@ -28,7 +28,7 @@ export default function Home() {
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
               href="#"
-              className="rounded-full bg-[var(--foreground)] px-7 py-3.5 text-base font-bold text-[var(--prismo-bg)] transition-transform hover:-translate-y-0.5"
+              className="rounded-full bg-[var(--foreground)] px-7 py-3.5 text-base font-bold text-[var(--background)] transition-transform hover:-translate-y-0.5"
             >
               Analyze a screen
             </a>
@@ -46,10 +46,8 @@ export default function Home() {
         </div>
 
         {/* Prismo */}
-        <div className="order-1 md:order-2">
-          <div className="mx-auto w-full max-w-md overflow-hidden rounded-[2rem] shadow-[0_30px_60px_-20px_rgba(90,58,63,0.45)]">
-            <Prismo className="h-auto w-full" />
-          </div>
+        <div className="order-1 flex justify-center md:order-2">
+          <Prismo className="h-auto w-full max-w-xs sm:max-w-sm" />
         </div>
       </section>
     </main>
