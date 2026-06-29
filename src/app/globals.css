@@ -27,7 +27,7 @@ body {
 
 /* ---------- Prismo animations ----------
    Coordinates are in the canonical vector's space: the eye sits at
-   (373.5, 78) and Prismo stands on the floor at roughly (349, 286). */
+   (130.5, 78) and Prismo stands on the floor at roughly (104, 286). */
 
 /* Whole-body idle breathing */
 @keyframes prismo-breathe {
@@ -97,31 +97,31 @@ body {
 
 .prismo-sway {
   transform-box: view-box;
-  transform-origin: 349px 286px;
+  transform-origin: 104px 286px;
   animation: prismo-sway 6s ease-in-out infinite;
 }
 
 .prismo-breathe {
   transform-box: view-box;
-  transform-origin: 349px 286px;
+  transform-origin: 104px 286px;
   animation: prismo-breathe 4.5s ease-in-out infinite;
 }
 
 .prismo-iris {
   transform-box: view-box;
-  transform-origin: 373.5px 78px;
+  transform-origin: 130.5px 78px;
   animation: prismo-look 7s ease-in-out infinite;
 }
 
 .prismo-lid {
   transform-box: view-box;
-  transform-origin: 373.5px 63px;
+  transform-origin: 130.5px 63px;
   animation: prismo-lid 4.8s ease-in-out infinite;
 }
 
 .prismo-contact {
   transform-box: view-box;
-  transform-origin: 349px 289px;
+  transform-origin: 104px 289px;
   animation: prismo-contact 4.5s ease-in-out infinite;
 }
 
