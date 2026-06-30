@@ -1,110 +1,46 @@
 import type { Analysis, DesignType, Issue, Severity } from "@/lib/types";
 import { analyze as mockAnalyze } from "@/lib/mock";
 import { inspectImage, NOT_RASTER_MESSAGE } from "@/lib/image";
+import { measureDesign, type MeasuredElement, type Measurements } from "@/lib/measure";
+import { buildMarks, type MarkMap } from "@/lib/marks";
 
 /**
- * Server-side design review. Sends the uploaded screenshot to a vision model
- * via OpenRouter and returns a structured Analysis. The API key lives only on
- * the server (process.env.OPENROUTER_API_KEY), never in the browser.
+ * Hybrid server-side design review.
  *
- * Env:
- *   OPENROUTER_API_KEY   required (unless USE_MOCK_ANALYSIS=1)
- *   OPENROUTER_MODEL     defaults to anthropic/claude-opus-4.1
- *   USE_MOCK_ANALYSIS=1  skip the model and return mock data (for testing wiring)
+ * 1. DETERMINISTIC layer (measure.ts): OCR + per-element WCAG contrast, font
+ *    sizes, palette — real numbers, not guesses.
+ * 2. SET-OF-MARKS (marks.ts): numbered boxes overlaid on the image so the model
+ *    references box IDs instead of guessing x/y coordinates.
+ * 3. The vision LLM gets the marked image + the measured facts and only does
+ *    qualitative critique. Measured failures (e.g. contrast) are added by us.
+ *
+ * Falls back to a plain image→LLM pass if the measurement step fails.
+ * Key stays server-side (OPENROUTER_API_KEY).
  */
 
 const MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-opus-4.1";
 
-const SYSTEM = `You are Prismo, a senior product designer reviewing a single UI screenshot. You judge work by one standard: is this a distinctive, intentional design, or a templated default? Be specific and grounded in exactly what is visible in the pixels. Be warm and constructive, never harsh. Only flag problems a senior designer would agree with. If the design is genuinely strong and distinctive, return few or no issues and a high score. Keep every piece of text short and concrete.
+const PRINCIPLES = `Review through these principles:
+- Distinctiveness over templated defaults; reward a specific point of view, flag generic/AI-cliché looks.
+- Hero as thesis; the big-number + gradient-accent hero is the template answer, flag it unless truly right.
+- Typography with personality; flag neutral default type.
+- Structure encodes meaning; flag decorative numbering when content is not a sequence.
+- Restraint; boldness in one signature element, cut decoration that serves nothing.
+- Copy is design material; plain active end-user language, specific over clever.`;
 
-Review through these principles:
-- Distinctiveness over defaults. Reward a specific point of view tied to the product's subject; flag generic, templated looks. Watch for the AI/template clichés and call them out: warm cream background + high-contrast serif + terracotta accent; near-black background + one acid-green or vermilion accent; broadsheet hairline rules with dense newspaper columns. These are defaults, not choices.
-- Hero as thesis. The top should open with the most characteristic thing about the product. The big-number + small-label + gradient-accent hero is the template answer; flag it unless it is truly the best option here.
-- Typography with personality. Look for a deliberate display/body pairing, a clear type scale, and intentional weights, widths, and spacing. Flag neutral, default type that is just a delivery vehicle.
-- Structure encodes meaning. Numbering (01 / 02 / 03), eyebrows, dividers, and labels should carry real information, not decorate. Flag numbered markers when the content is not actually a sequence.
-- Restraint. Boldness should live in one signature element while everything else stays quiet and disciplined. Flag scattered decoration that serves nothing (the "remove one accessory" test).
-- Match complexity to intent. Maximalist directions need elaborate execution; minimal directions need precision in spacing, type, and detail.
-- Copy is design material. Favor plain, active, end-user language ("Save changes", not "Submit"), specific over clever, and one consistent vocabulary across the flow; errors and empty states should give direction. Flag copy that sells, hedges, is vague, or names things by how the system is built.
-- Quality floor: clear visual hierarchy, legible contrast, comfortable spacing, and one obvious primary action.
-
-For each issue, frame it around the principle it breaks, in plain language, and make every fix move the design toward a more intentional, less templated result.`;
-
-function instruction(designType: string) {
-  return `Review this ${designType} screenshot. Respond with ONLY a JSON object (no markdown, no commentary) of this exact shape:
-{
-  "score": integer 0-100 (overall design quality),
-  "headline": short encouraging phrase, max 5 words,
-  "summary": one short sentence,
-  "strengths": array of 2-4 very short phrases describing what works,
-  "issues": array of 0-4 of the MOST important problems, most impactful first, each:
-    {
-      "title": 2-4 word label,
-      "explanation": one short, plain sentence,
-      "severity": "high" | "medium" | "low",
-      "x": number 0-100, horizontal percent of the image at the center of the problem,
-      "y": number 0-100, vertical percent of the image,
-      "solutions": array of 2-3 distinct fixes, each { "label": 2-4 word action, "detail": one short clause }
-    }
-}
-Rules:
-- Ground every issue and every x/y on the real element in the image.
-- Only include issues you are confident about. If the screen is genuinely good, use "issues": [] and a high score.
-- Frame each issue around the design principle it breaks.
-- Keep all text tight, a designer's shorthand. No filler.
-- Always return the JSON object, even for a rough review. Never reply with prose.`;
-}
+const SYSTEM = `You are Prismo, a senior product designer reviewing a UI screenshot. Be specific, warm, and constructive. ${PRINCIPLES} Keep every piece of text short and concrete.`;
 
 const clamp = (n: unknown, lo: number, hi: number, fallback: number) => {
   const v = typeof n === "number" && Number.isFinite(n) ? n : fallback;
   return Math.max(lo, Math.min(hi, v));
 };
-
 const SEVS: Severity[] = ["low", "medium", "high"];
 
-/** Validate + coerce raw model JSON into a safe Analysis with ids. */
-function coerce(raw: unknown): Analysis {
-  const r = (raw ?? {}) as Record<string, unknown>;
-  const rawIssues = Array.isArray(r.issues) ? r.issues.slice(0, 4) : [];
-
-  const issues: Issue[] = rawIssues.map((it, i) => {
-    const o = (it ?? {}) as Record<string, unknown>;
-    const sols = Array.isArray(o.solutions) ? o.solutions.slice(0, 3) : [];
-    const solutions = sols
-      .map((s, j) => {
-        const so = (s ?? {}) as Record<string, unknown>;
-        return {
-          id: String.fromCharCode(97 + j), // a, b, c
-          label: String(so.label ?? "Improve it").slice(0, 40),
-          detail: String(so.detail ?? "").slice(0, 80),
-        };
-      })
-      .filter((s) => s.label);
-    return {
-      id: `i${i}`,
-      title: String(o.title ?? "Issue").slice(0, 40),
-      explanation: String(o.explanation ?? "").slice(0, 140),
-      severity: SEVS.includes(o.severity as Severity) ? (o.severity as Severity) : "medium",
-      x: clamp(o.x, 2, 98, 50),
-      y: clamp(o.y, 2, 98, 50),
-      solutions: solutions.length ? solutions : [{ id: "a", label: "Refine it", detail: "" }],
-    };
-  });
-
-  const strengths = Array.isArray(r.strengths)
-    ? r.strengths.slice(0, 4).map((s) => String(s).slice(0, 60))
-    : [];
-
-  return {
-    id: `a${Date.now()}`,
-    score: Math.round(clamp(r.score, 0, 100, 80)),
-    headline: String(r.headline ?? (issues.length ? "Nice work" : "A stunner ✨")).slice(0, 40),
-    summary: String(r.summary ?? "").slice(0, 200),
-    strengths: strengths.length ? strengths : ["Clean overall composition"],
-    issues,
-  };
+function decode(image: string): Buffer {
+  const comma = image.indexOf(",");
+  return Buffer.from(image.slice(comma + 1), "base64");
 }
 
-/** Pull a JSON object out of a model response that may include fences/prose. */
 function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const body = fenced ? fenced[1] : text;
@@ -114,41 +50,117 @@ function extractJson(text: string): unknown {
   return JSON.parse(body.slice(start, end + 1));
 }
 
-export async function POST(req: Request) {
-  let image = "";
-  let designType = "Mobile app";
-  try {
-    const body = await req.json();
-    image = body.image ?? "";
-    designType = body.designType ?? "Mobile app";
-  } catch {
-    return Response.json({ error: "Invalid request body" }, { status: 400 });
-  }
-  if (!image) return Response.json({ error: "No image provided" }, { status: 400 });
+function isNeutral(hex: string) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return Math.max(r, g, b) - Math.min(r, g, b) < 22;
+}
 
-  // Verify exactly what we're about to send the model.
-  const info = inspectImage(image);
-  console.log(
-    `[analyze] image ${info.kind} ${info.mime ?? "?"} ~${info.kb ?? "?"}KB raster=${info.isRaster} designType=${designType}`,
+/* ---------- deterministic issues from measurements ---------- */
+function measuredIssues(m: Measurements): Issue[] {
+  const text = m.elements.filter((e) => e.text.length >= 2);
+  const fails = text
+    .filter((e) => (e.fontPx >= 28 ? !e.aaLarge : !e.aa))
+    .sort((a, b) => a.contrast - b.contrast)
+    .slice(0, 3);
+  return fails.map((e, i) => {
+    const need = e.fontPx >= 28 ? "3:1" : "4.5:1";
+    return {
+      id: `m${i}`,
+      title: "Low contrast text",
+      explanation: `"${e.text}" sits at ${e.contrast}:1, below the readable minimum.`,
+      severity: (e.contrast < 3 ? "high" : "medium") as Severity,
+      x: Math.round(((e.x + e.w / 2) / m.width) * 1000) / 10,
+      y: Math.round(((e.y + e.h / 2) / m.height) * 1000) / 10,
+      measured: true,
+      metric: `${e.contrast}:1 (needs ${need})`,
+      solutions: [
+        { id: "a", label: "Darken the text", detail: `Aim for at least ${need}.`, filter: "contrast(1.15) brightness(0.97)" },
+        { id: "b", label: "Lighten behind it", detail: "Raise the surface separation." },
+      ],
+    };
+  });
+}
+
+function blendedScore(m: Measurements, craft: number): number {
+  const contrastScore = 100 - m.contrastFailRate * 70;
+  const fonts = m.elements.map((e) => e.fontPx).sort((a, b) => a - b);
+  const median = fonts[Math.floor(fonts.length / 2)] || 1;
+  const max = fonts[fonts.length - 1] || 1;
+  const ratio = max / median;
+  const hierarchy = ratio >= 1.8 ? 100 : ratio >= 1.4 ? 80 : ratio >= 1.15 ? 65 : 50;
+  const nonNeutral = m.palette.filter((p) => !isNeutral(p.hex) && p.pct >= 4).length;
+  const palette = nonNeutral <= 3 ? 100 : nonNeutral <= 5 ? 75 : 55;
+  return Math.round(
+    clamp(0.35 * contrastScore + 0.2 * hierarchy + 0.15 * palette + 0.3 * craft, 0, 100, 75),
   );
+}
 
-  // Test path: exercise the full client→server→UI plumbing without a key.
-  if (process.env.USE_MOCK_ANALYSIS === "1") {
-    return Response.json(mockAnalyze(designType as DesignType, image.length % 997));
-  }
+function metricsText(els: MeasuredElement[], m: Measurements): string {
+  const rows = els
+    .map((e) => `${e.id}: "${e.text}" | ${e.fontPx}px | ${e.contrast}:1`)
+    .join("\n");
+  const pal = m.palette.map((p) => `${p.hex} ${p.pct}%`).join(", ");
+  return `Numbered boxes mark detected text. MEASURED facts (already computed — never restate or invent these numbers):\nid: "text" | fontPx | contrast\n${rows}\nPalette: ${pal}`;
+}
 
-  if (!info.isRaster) {
-    return Response.json({ error: NOT_RASTER_MESSAGE }, { status: 415 });
-  }
+function qualInstruction(designType: string, els: MeasuredElement[], m: Measurements): string {
+  return `Review this ${designType} screenshot. ${metricsText(els, m)}
 
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) {
-    return Response.json(
-      { error: "Server is missing OPENROUTER_API_KEY. Add it to .env.local and restart." },
-      { status: 503 },
-    );
-  }
+Return ONLY a JSON object:
+{
+  "craftScore": integer 0-100 (your qualitative judgment of craft/distinctiveness),
+  "headline": short phrase, max 5 words,
+  "summary": one short sentence,
+  "strengths": array of 2-4 very short phrases,
+  "issues": array of up to 4 qualitative problems, most impactful first, each:
+    { "markId": integer (the numbered box this is about, or 0 if none),
+      "title": 2-4 word label,
+      "explanation": one short, plain sentence,
+      "severity": "high" | "medium" | "low",
+      "solutions": array of 2-3 fixes, each { "label": 2-4 word action, "detail": one short clause } }
+}
+Rules:
+- Reference real locations by markId. Do NOT invent or restate contrast numbers — they are given and handled separately.
+- Only QUALITATIVE/principle issues (hierarchy, CTA clarity, distinctiveness, spacing, copy). Skip contrast.
+- If the design is strong, return few/no issues and a high craftScore.
+- Always return valid JSON, never prose.`;
+}
 
+function coerceQualitative(raw: unknown, map: MarkMap, startIdx: number): { issues: Issue[]; craft: number; headline: string; summary: string; strengths: string[] } {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const rawIssues = Array.isArray(r.issues) ? r.issues.slice(0, 4) : [];
+  const issues: Issue[] = rawIssues.map((it, i) => {
+    const o = (it ?? {}) as Record<string, unknown>;
+    const sols = (Array.isArray(o.solutions) ? o.solutions.slice(0, 3) : [])
+      .map((s, j) => {
+        const so = (s ?? {}) as Record<string, unknown>;
+        return { id: String.fromCharCode(97 + j), label: String(so.label ?? "Refine it").slice(0, 40), detail: String(so.detail ?? "").slice(0, 80) };
+      })
+      .filter((s) => s.label);
+    const mid = Number(o.markId);
+    const pos = map[mid] ?? { x: 50, y: 50 };
+    return {
+      id: `i${startIdx + i}`,
+      title: String(o.title ?? "Issue").slice(0, 40),
+      explanation: String(o.explanation ?? "").slice(0, 140),
+      severity: SEVS.includes(o.severity as Severity) ? (o.severity as Severity) : "medium",
+      x: pos.x,
+      y: pos.y,
+      solutions: sols.length ? sols : [{ id: "a", label: "Refine it", detail: "" }],
+    };
+  });
+  return {
+    issues,
+    craft: Math.round(clamp(r.craftScore, 0, 100, 78)),
+    headline: String(r.headline ?? "Nice work").slice(0, 40),
+    summary: String(r.summary ?? "").slice(0, 200),
+    strengths: (Array.isArray(r.strengths) ? r.strengths.slice(0, 4) : []).map((s) => String(s).slice(0, 60)),
+  };
+}
+
+async function callModel(key: string, system: string, userText: string, imageUrl: string) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 60_000);
   try {
@@ -166,30 +178,124 @@ export async function POST(req: Request) {
         temperature: 0.4,
         max_tokens: 1024,
         messages: [
-          { role: "system", content: SYSTEM },
+          { role: "system", content: system },
           {
             role: "user",
             content: [
-              { type: "text", text: instruction(designType) },
-              { type: "image_url", image_url: { url: image } },
+              { type: "text", text: userText },
+              { type: "image_url", image_url: { url: imageUrl } },
             ],
           },
         ],
       }),
     });
-
     if (!res.ok) {
       const detail = await res.text();
-      return Response.json(
-        { error: `Model request failed (${res.status})`, detail: detail.slice(0, 300) },
-        { status: 502 },
-      );
+      throw new Error(`Model request failed (${res.status}): ${detail.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    return String(data?.choices?.[0]?.message?.content ?? "");
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/* ---------- fallback: plain image → LLM (no measurements) ---------- */
+function fallbackInstruction(designType: string): string {
+  return `Review this ${designType} screenshot. Respond with ONLY a JSON object:
+{ "craftScore": 0-100, "headline": "<=5 words", "summary": "one sentence", "strengths": ["2-4 short"],
+  "issues": [ up to 4 { "markId": 0, "title": "2-4 words", "explanation": "one sentence", "severity": "high|medium|low", "solutions": [ {"label":"2-4 words","detail":"short"} ] } ] }
+Ground issues in the real image. If strong, few/no issues + high craftScore. Always valid JSON.`;
+}
+
+export async function POST(req: Request) {
+  let image = "";
+  let designType = "Mobile app";
+  try {
+    const body = await req.json();
+    image = body.image ?? "";
+    designType = body.designType ?? "Mobile app";
+  } catch {
+    return Response.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  if (!image) return Response.json({ error: "No image provided" }, { status: 400 });
+
+  const info = inspectImage(image);
+  console.log(`[analyze] image ${info.kind} ${info.mime ?? "?"} ~${info.kb ?? "?"}KB raster=${info.isRaster} type=${designType}`);
+
+  if (process.env.USE_MOCK_ANALYSIS === "1") {
+    return Response.json(mockAnalyze(designType as DesignType, image.length % 997));
+  }
+  if (!info.isRaster) return Response.json({ error: NOT_RASTER_MESSAGE }, { status: 415 });
+
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) {
+    return Response.json(
+      { error: "Server is missing OPENROUTER_API_KEY. Add it to .env.local and restart." },
+      { status: 503 },
+    );
+  }
+
+  // ---- 1. deterministic measurements (best-effort) ----
+  let measurements: Measurements | null = null;
+  try {
+    measurements = await measureDesign(decode(image));
+    console.log(`[analyze] measured ${measurements.elements.length} text elements, contrast fail rate ${measurements.contrastFailRate}`);
+  } catch (e) {
+    console.warn("[analyze] measurement failed, falling back:", e instanceof Error ? e.message : e);
+  }
+
+  try {
+    if (measurements && measurements.elements.length > 0) {
+      // ---- 2. set-of-marks ----
+      const els = [...measurements.elements].sort((a, b) => b.fontPx - a.fontPx).slice(0, 16);
+      const { dataUrl, map } = await buildMarks(decode(image), measurements.width, measurements.height, els);
+      const det = measuredIssues(measurements);
+
+      // ---- 3. qualitative LLM pass (best-effort: keep the measured findings even if the model fails) ----
+      let q: ReturnType<typeof coerceQualitative> | null = null;
+      try {
+        const content = await callModel(key, SYSTEM, qualInstruction(designType, els, measurements), dataUrl);
+        q = coerceQualitative(extractJson(content), map, det.length);
+      } catch (e) {
+        console.warn("[analyze] qualitative pass failed, returning measured-only:", e instanceof Error ? e.message : e);
+      }
+
+      const issues = (q ? [...det, ...q.issues] : det).slice(0, 5);
+      const score = blendedScore(measurements, q ? q.craft : 72);
+      const analysis: Analysis = {
+        id: `a${Date.now()}`,
+        score,
+        headline: q
+          ? det.length && q.headline === "Nice work"
+            ? "A few quick wins"
+            : q.headline
+          : det.length
+            ? "Measured a few fixes"
+            : "Measurements look clean",
+        summary: q?.summary || "Here are the measured findings for this screen.",
+        strengths: q?.strengths.length ? q.strengths : ["Clean overall composition"],
+        issues,
+        metrics: {
+          contrastFailRate: measurements.contrastFailRate,
+          textElements: measurements.elements.length,
+          palette: measurements.palette,
+        },
+      };
+      return Response.json(analysis);
     }
 
-    const data = await res.json();
-    const content: string = data?.choices?.[0]?.message?.content ?? "";
-    const analysis = coerce(extractJson(content));
-    return Response.json(analysis);
+    // ---- fallback: no measurements ----
+    const content = await callModel(key, SYSTEM, fallbackInstruction(designType), image);
+    const q = coerceQualitative(extractJson(content), {}, 0);
+    return Response.json({
+      id: `a${Date.now()}`,
+      score: q.craft,
+      headline: q.headline,
+      summary: q.summary,
+      strengths: q.strengths.length ? q.strengths : ["Clean overall composition"],
+      issues: q.issues,
+    } satisfies Analysis);
   } catch (e) {
     const msg = e instanceof Error && e.name === "AbortError"
       ? "The model took too long to respond. Free models can be slow, try again."
@@ -197,7 +303,5 @@ export async function POST(req: Request) {
         ? e.message
         : "Analysis failed";
     return Response.json({ error: msg }, { status: 500 });
-  } finally {
-    clearTimeout(t);
   }
 }

@@ -25,6 +25,16 @@ export type Issue = {
   y: number;
   /** 2–3 ways to fix it; the user picks one (or discards the issue). */
   solutions: Solution[];
+  /** True when this issue is a hard measurement (e.g. computed contrast), not LLM judgment. */
+  measured?: boolean;
+  /** Short measured fact shown as evidence, e.g. "2.1:1 contrast (needs 4.5:1)". */
+  metric?: string;
+};
+
+export type Metrics = {
+  contrastFailRate: number; // 0..1 of detected text failing AA
+  textElements: number;
+  palette: { hex: string; pct: number }[];
 };
 
 export type Analysis = {
@@ -34,6 +44,8 @@ export type Analysis = {
   summary: string;
   strengths: string[];
   issues: Issue[];
+  /** Deterministic measurements (present when the hybrid pipeline ran). */
+  metrics?: Metrics;
 };
 
 /** A solution id, or "discarded" when the user keeps the original. */

@@ -197,8 +197,15 @@ export default function Results({
                     <h3 className={`font-semibold ${discarded ? "text-[var(--ink-faint)] line-through" : "text-[var(--ink)]"}`}>
                       {issue.title}
                     </h3>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${sev[issue.severity].chip}`}>
-                      {sev[issue.severity].label}
+                    <span className="flex shrink-0 items-center gap-1">
+                      {issue.measured && (
+                        <span className="rounded-full bg-[#dff3e6] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1f8a4c]">
+                          ✓ Measured
+                        </span>
+                      )}
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${sev[issue.severity].chip}`}>
+                        {sev[issue.severity].label}
+                      </span>
                     </span>
                   </div>
 
@@ -219,6 +226,11 @@ export default function Results({
                       <p className="mt-1.5 text-[13.5px] leading-relaxed text-[var(--ink-soft)]">
                         {issue.explanation}
                       </p>
+                      {issue.metric && (
+                        <p className="mt-2 inline-block rounded-lg bg-[var(--ink)]/5 px-2 py-1 font-mono text-[11px] font-medium text-[var(--ink)]">
+                          {issue.metric}
+                        </p>
+                      )}
                       <p className="mt-3 text-[11px] font-bold uppercase tracking-wider text-[var(--ink-faint)]">
                         Choose a fix
                       </p>

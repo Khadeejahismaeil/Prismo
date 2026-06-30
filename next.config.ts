@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Keep native/worker-based deps out of the bundler; load them at runtime (Node).
+  serverExternalPackages: ["sharp", "tesseract.js"],
 };
 
 export default nextConfig;
