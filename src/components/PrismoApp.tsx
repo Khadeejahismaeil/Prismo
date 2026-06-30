@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Analysis, DesignType, HistoryEntry } from "@/lib/types";
+import type { Analysis, Choices, DesignType, HistoryEntry } from "@/lib/types";
 import { analyze } from "@/lib/mock";
 import { addHistory, clearHistory, getHistory } from "@/lib/history";
 import PhoneFrame from "./PhoneFrame";
@@ -20,12 +20,18 @@ type Screen =
   | "improve"
   | "history";
 
+/** Default each issue to its first (recommended) solution. */
+function defaultChoices(analysis: Analysis): Choices {
+  return Object.fromEntries(analysis.issues.map((i) => [i.id, i.solutions[0].id]));
+}
+
 export default function PrismoApp() {
   const [screen, setScreen] = useState<Screen>("welcome");
   const [name, setName] = useState("");
   const [designType, setDesignType] = useState<DesignType>("Mobile app");
   const [image, setImage] = useState<string>("");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [choices, setChoices] = useState<Choices>({});
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   useEffect(() => {
@@ -42,7 +48,9 @@ export default function PrismoApp() {
   const finishAnalyze = () => {
     const seed = (image.length + Date.now()) % 1000;
     const result = analyze(designType, seed);
+    const defaults = defaultChoices(result);
     setAnalysis(result);
+    setChoices(defaults);
 
     const entry: HistoryEntry = {
       id: `h${Date.now()}`,
@@ -52,6 +60,7 @@ export default function PrismoApp() {
       date: new Date().toISOString(),
       image,
       analysis: result,
+      choices: defaults,
     };
     setHistory(addHistory(entry));
     setScreen("results");
@@ -61,6 +70,7 @@ export default function PrismoApp() {
     setDesignType(e.designType);
     setImage(e.image);
     setAnalysis(e.analysis);
+    setChoices(e.choices ?? defaultChoices(e.analysis));
     setScreen("results");
   };
 
@@ -90,18 +100,24 @@ export default function PrismoApp() {
 
       {screen === "results" && analysis && (
         <Results
-          name={name}
           image={image}
           analysis={analysis}
+          choices={choices}
+          onChoose={(issueId, value) =>
+            setChoices((c) => ({ ...c, [issueId]: value }))
+          }
           onImprove={() => setScreen("improve")}
           onNew={() => setScreen("upload")}
+          onDone={() => setScreen("history")}
           onHistory={() => setScreen("history")}
         />
       )}
 
-      {screen === "improve" && (
+      {screen === "improve" && analysis && (
         <Improve
           image={image}
+          analysis={analysis}
+          choices={choices}
           onBack={() => setScreen("results")}
           onDone={() => setScreen("history")}
         />
