@@ -1,5 +1,6 @@
 import type { Analysis, DesignType, Issue, Severity } from "@/lib/types";
 import { analyze as mockAnalyze } from "@/lib/mock";
+import { inspectImage, NOT_RASTER_MESSAGE } from "@/lib/image";
 
 /**
  * Server-side design review. Sends the uploaded screenshot to a vision model
@@ -125,9 +126,19 @@ export async function POST(req: Request) {
   }
   if (!image) return Response.json({ error: "No image provided" }, { status: 400 });
 
+  // Verify exactly what we're about to send the model.
+  const info = inspectImage(image);
+  console.log(
+    `[analyze] image ${info.kind} ${info.mime ?? "?"} ~${info.kb ?? "?"}KB raster=${info.isRaster} designType=${designType}`,
+  );
+
   // Test path: exercise the full client→server→UI plumbing without a key.
   if (process.env.USE_MOCK_ANALYSIS === "1") {
     return Response.json(mockAnalyze(designType as DesignType, image.length % 997));
+  }
+
+  if (!info.isRaster) {
+    return Response.json({ error: NOT_RASTER_MESSAGE }, { status: 415 });
   }
 
   const key = process.env.OPENROUTER_API_KEY;
@@ -138,8 +149,11 @@ export async function POST(req: Request) {
     );
   }
 
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 60_000);
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      signal: ctrl.signal,
       method: "POST",
       headers: {
         Authorization: `Bearer ${key}`,
@@ -177,9 +191,13 @@ export async function POST(req: Request) {
     const analysis = coerce(extractJson(content));
     return Response.json(analysis);
   } catch (e) {
-    return Response.json(
-      { error: e instanceof Error ? e.message : "Analysis failed" },
-      { status: 500 },
-    );
+    const msg = e instanceof Error && e.name === "AbortError"
+      ? "The model took too long to respond. Free models can be slow, try again."
+      : e instanceof Error
+        ? e.message
+        : "Analysis failed";
+    return Response.json({ error: msg }, { status: 500 });
+  } finally {
+    clearTimeout(t);
   }
 }

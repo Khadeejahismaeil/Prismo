@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { DesignType } from "@/lib/types";
-import { SAMPLE_SCREEN } from "@/lib/sample";
+import { loadSampleDataUrl } from "@/lib/sample";
 import { Chip, GlassButton, IconButton } from "../ui";
 
 const TYPES: { label: DesignType; icon: string }[] = [
@@ -114,7 +114,7 @@ export default function Upload({
           </button>
         ) : (
           <button
-            onClick={() => setImage(SAMPLE_SCREEN)}
+            onClick={async () => setImage(await loadSampleDataUrl())}
             className="press mx-auto mt-3 block text-sm font-semibold text-[var(--ink-soft)]"
           >
             ✨ or try a sample screen

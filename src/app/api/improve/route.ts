@@ -6,6 +6,8 @@
  * sandboxed iframe. Key stays server-side.
  */
 
+import { inspectImage, NOT_RASTER_MESSAGE } from "@/lib/image";
+
 const MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-opus-4.1";
 
 const SYSTEM = `You are a senior product designer and front-end engineer. You recreate a UI screen from a screenshot as a single self-contained HTML document, faithfully preserving its real content (text, numbers, labels, structure) so it is recognizably the same screen, then apply specific requested improvements and strong visual-design principles (distinctiveness over templated defaults, intentional typography, clear hierarchy, restraint). You output only HTML.`;
@@ -89,10 +91,17 @@ export async function POST(req: Request) {
   }
   if (!image) return Response.json({ error: "No image provided" }, { status: 400 });
 
+  const info = inspectImage(image);
+  console.log(`[improve] image ${info.kind} ${info.mime ?? "?"} ~${info.kb ?? "?"}KB raster=${info.isRaster}`);
+
   // Test path: return a sample improved screen without calling the model.
   if (process.env.USE_MOCK_ANALYSIS === "1") {
     await new Promise((r) => setTimeout(r, 1200));
     return Response.json({ html: MOCK_HTML });
+  }
+
+  if (!info.isRaster) {
+    return Response.json({ error: NOT_RASTER_MESSAGE }, { status: 415 });
   }
 
   const key = process.env.OPENROUTER_API_KEY;
@@ -103,8 +112,11 @@ export async function POST(req: Request) {
     );
   }
 
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 85_000);
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      signal: ctrl.signal,
       method: "POST",
       headers: {
         Authorization: `Bearer ${key}`,
@@ -145,9 +157,13 @@ export async function POST(req: Request) {
     }
     return Response.json({ html });
   } catch (e) {
-    return Response.json(
-      { error: e instanceof Error ? e.message : "Generation failed" },
-      { status: 500 },
-    );
+    const msg = e instanceof Error && e.name === "AbortError"
+      ? "The redraw took too long. Free models can be slow, try again."
+      : e instanceof Error
+        ? e.message
+        : "Generation failed";
+    return Response.json({ error: msg }, { status: 500 });
+  } finally {
+    clearTimeout(t);
   }
 }
