@@ -186,7 +186,11 @@ export default function ScratchReveal({
         className="absolute inset-0 h-full w-full cursor-grab active:cursor-grabbing"
         onPointerDown={(e) => {
           drawing.current = true;
-          (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+          try {
+            (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+          } catch {
+            /* pointer not active (e.g. synthetic events) — safe to ignore */
+          }
           erase(e.clientX, e.clientY);
         }}
         onPointerMove={(e) => {
