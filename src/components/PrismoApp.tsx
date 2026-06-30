@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Analysis, Choices, DesignType, HistoryEntry } from "@/lib/types";
-import { analyze } from "@/lib/mock";
+import { requestAnalysis } from "@/lib/analyzeClient";
 import { addHistory, clearHistory, getHistory } from "@/lib/history";
 import PhoneFrame from "./PhoneFrame";
 import Welcome from "./screens/Welcome";
@@ -33,37 +33,51 @@ export default function PrismoApp() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [choices, setChoices] = useState<Choices>({});
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   useEffect(() => {
     setHistory(getHistory());
   }, []);
 
+  const runAnalyze = useCallback(
+    async (type: DesignType, img: string) => {
+      setAnalyzeError(null);
+      try {
+        // Keep the pickle on screen for a beat even if the model is quick.
+        const minWait = new Promise((r) => setTimeout(r, 3000));
+        const result = await requestAnalysis(img, type);
+        await minWait;
+
+        const defaults = defaultChoices(result);
+        setAnalysis(result);
+        setChoices(defaults);
+
+        const entry: HistoryEntry = {
+          id: `h${Date.now()}`,
+          name,
+          designType: type,
+          score: result.score,
+          date: new Date().toISOString(),
+          image: img,
+          analysis: result,
+          choices: defaults,
+        };
+        setHistory(addHistory(entry));
+        setScreen("results");
+      } catch (e) {
+        setAnalyzeError(e instanceof Error ? e.message : "Something went wrong.");
+      }
+    },
+    [name],
+  );
+
   const startAnalyze = (type: DesignType, img: string) => {
     setDesignType(type);
     setImage(img);
     setAnalysis(null);
+    setAnalyzeError(null);
     setScreen("analyzing");
-  };
-
-  const finishAnalyze = () => {
-    const seed = (image.length + Date.now()) % 1000;
-    const result = analyze(designType, seed);
-    const defaults = defaultChoices(result);
-    setAnalysis(result);
-    setChoices(defaults);
-
-    const entry: HistoryEntry = {
-      id: `h${Date.now()}`,
-      name,
-      designType,
-      score: result.score,
-      date: new Date().toISOString(),
-      image,
-      analysis: result,
-      choices: defaults,
-    };
-    setHistory(addHistory(entry));
-    setScreen("results");
+    runAnalyze(type, img);
   };
 
   const openEntry = (e: HistoryEntry) => {
@@ -95,7 +109,15 @@ export default function PrismoApp() {
       )}
 
       {screen === "analyzing" && (
-        <Analyzing image={image} onComplete={finishAnalyze} />
+        <Analyzing
+          image={image}
+          error={analyzeError}
+          onRetry={() => runAnalyze(designType, image)}
+          onCancel={() => {
+            setAnalyzeError(null);
+            setScreen("upload");
+          }}
+        />
       )}
 
       {screen === "results" && analysis && (

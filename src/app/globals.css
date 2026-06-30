@@ -217,6 +217,12 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 1s linear infinite; }
 
+@keyframes indeterminate {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(360%); }
+}
+.bar-indeterminate { animation: indeterminate 1.3s ease-in-out infinite; }
+
 /* ---------- Prismo mascot idle animations ---------- */
 @keyframes prismo-breathe {
   0%, 100% { transform: translateY(0) scaleY(1); }

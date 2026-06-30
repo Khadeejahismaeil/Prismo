@@ -2,36 +2,56 @@
 
 import { useEffect, useState } from "react";
 import PrismoEating from "../PrismoEating";
+import Prismo from "../Prismo";
+import { GlassButton } from "../ui";
 import { LOADING_MESSAGES } from "@/lib/mock";
 
 export default function Analyzing({
   image,
-  onComplete,
+  error,
+  onRetry,
+  onCancel,
 }: {
   image: string;
-  onComplete: () => void;
+  error: string | null;
+  onRetry: () => void;
+  onCancel: () => void;
 }) {
   const [msg, setMsg] = useState(0);
-  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    const total = 5200;
-    const start = performance.now();
-    let raf = 0;
-    const tick = (t: number) => {
-      const p = Math.min(1, (t - start) / total);
-      setProgress(p);
-      setMsg(Math.min(LOADING_MESSAGES.length - 1, Math.floor(p * LOADING_MESSAGES.length)));
-      if (p < 1) raf = requestAnimationFrame(tick);
-      else onComplete();
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [onComplete]);
+    if (error) return;
+    const id = setInterval(
+      () => setMsg((m) => (m + 1) % LOADING_MESSAGES.length),
+      1200,
+    );
+    return () => clearInterval(id);
+  }, [error]);
+
+  if (error) {
+    return (
+      <div className="screen-enter flex min-h-full flex-col items-center justify-center px-8 text-center">
+        <div className="w-28 opacity-90">
+          <Prismo className="h-auto w-full" />
+        </div>
+        <h2 className="mt-4 font-display text-[1.6rem] font-semibold text-[var(--ink)]">
+          I couldn&apos;t review that
+        </h2>
+        <p className="mt-2 max-w-xs text-[14px] leading-relaxed text-[var(--ink-soft)]">
+          {error}
+        </p>
+        <div className="mt-6 flex w-full max-w-xs flex-col gap-3">
+          <GlassButton onClick={onRetry}>Try again</GlassButton>
+          <button onClick={onCancel} className="press text-sm font-semibold text-[var(--ink-soft)]">
+            Pick another screen
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="screen-enter flex min-h-full flex-col items-center justify-center px-8 text-center">
-      {/* faint preview of what's being reviewed */}
       <div className="glass mb-8 w-28 overflow-hidden rounded-2xl p-1.5 opacity-90">
         <img src={image} alt="" className="aspect-[9/16] w-full rounded-xl object-cover" />
       </div>
@@ -51,11 +71,10 @@ export default function Analyzing({
         {LOADING_MESSAGES[msg]}
       </p>
 
-      {/* progress */}
       <div className="mt-7 h-2 w-56 overflow-hidden rounded-full bg-white/50">
         <div
-          className="h-full rounded-full transition-[width] duration-150"
-          style={{ width: `${progress * 100}%`, backgroundImage: "var(--grad-primary)" }}
+          className="bar-indeterminate h-full w-2/5 rounded-full"
+          style={{ backgroundImage: "var(--grad-primary)" }}
         />
       </div>
     </div>
