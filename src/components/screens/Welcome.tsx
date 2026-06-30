@@ -28,7 +28,7 @@ export default function Welcome({
           <br /> your design buddy.
         </h1>
         <p className="mt-4 max-w-xs text-[15px] leading-relaxed text-[var(--ink-soft)]">
-          Show me any screen and I&apos;ll give you warm, useful feedback — and
+          Show me any screen and I&apos;ll give you warm, useful feedback, and
           even a glow-up. First, what should I call you?
         </p>
 

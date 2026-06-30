@@ -100,7 +100,7 @@ export default function Results({
             <Prismo className="h-auto w-full" />
           </div>
           <p className="mt-2 text-[15px] font-medium text-[var(--ink)]">
-            No fixes needed — I&apos;d ship this. 🎉
+            No fixes needed, I&apos;d ship this. 🎉
           </p>
         </div>
 
@@ -136,7 +136,7 @@ export default function Results({
       {/* annotated screenshot */}
       <div className="mt-5">
         <p className="mb-2 text-sm font-semibold text-[var(--ink)]">
-          I circled what to look at — pick a fix for each
+          What to look at
         </p>
         <div className="glass relative overflow-hidden rounded-3xl p-1.5">
           <div className="relative overflow-hidden rounded-[1.35rem]">

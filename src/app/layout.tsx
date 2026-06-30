@@ -14,9 +14,9 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Prismo — AI design reviewer",
+  title: "Prismo, AI design reviewer",
   description:
-    "Upload a screen and Prismo reviews hierarchy, spacing, contrast and CTA clarity — then scores it and shows you exactly what to fix.",
+    "Upload a screen and Prismo reviews hierarchy, spacing, contrast and CTA clarity, then scores it and shows you exactly what to fix.",
 };
 
 export const viewport: Viewport = {

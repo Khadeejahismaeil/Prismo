@@ -3,7 +3,7 @@ import type { Analysis, DesignType, Issue, Severity } from "./types";
 /**
  * A believable mock review. In production this is where the OpenRouter
  * vision call would go. Each issue offers a few alternative fixes the user can
- * choose between (or discard), and not every design needs fixing — strong
+ * choose between (or discard), and not every design needs fixing, strong
  * designs come back clean.
  */
 
@@ -11,89 +11,83 @@ type IssueSeed = Omit<Issue, "id">;
 
 const POOL: IssueSeed[] = [
   {
-    title: "Visual hierarchy is flat",
-    explanation:
-      "The most important element doesn't stand out — the eye doesn't know where to land first.",
+    title: "Flat hierarchy",
+    explanation: "Nothing leads the eye first.",
     severity: "high",
     x: 32,
     y: 20,
     solutions: [
-      { id: "a", label: "Enlarge the headline", detail: "Scale the key title up and make it heavier.", filter: "contrast(1.08)" },
-      { id: "b", label: "Add a color accent", detail: "Tint the primary title with the brand color.", filter: "saturate(1.2)" },
-      { id: "c", label: "Add an eyebrow label", detail: "A small caps label above anchors the section." },
+      { id: "a", label: "Enlarge the headline", detail: "Bigger, heavier title.", filter: "contrast(1.08)" },
+      { id: "b", label: "Add a color accent", detail: "Tint the title in brand.", filter: "saturate(1.2)" },
+      { id: "c", label: "Add an eyebrow label", detail: "Small label above it." },
     ],
   },
   {
-    title: "Primary CTA blends in",
-    explanation:
-      "Your main action looks like everything around it, so it's easy to miss.",
+    title: "CTA blends in",
+    explanation: "The main action is easy to miss.",
     severity: "high",
     x: 70,
     y: 74,
     solutions: [
-      { id: "a", label: "Solid brand fill", detail: "Fill the button with the brand gradient.", filter: "saturate(1.22) contrast(1.05)" },
-      { id: "b", label: "High-contrast outline", detail: "Bold outline with a darker label.", filter: "contrast(1.14)" },
-      { id: "c", label: "Raise it up the page", detail: "Move the CTA so it's seen sooner." },
+      { id: "a", label: "Solid brand fill", detail: "Fill it with brand color.", filter: "saturate(1.22) contrast(1.05)" },
+      { id: "b", label: "High-contrast outline", detail: "Bold outline, dark label.", filter: "contrast(1.14)" },
+      { id: "c", label: "Raise it up", detail: "Move it into view sooner." },
     ],
   },
   {
-    title: "Low text contrast",
-    explanation:
-      "Light grey on a light background dips below the AA accessibility ratio.",
+    title: "Low contrast",
+    explanation: "Grey on light dips below AA.",
     severity: "medium",
     x: 26,
     y: 52,
     solutions: [
-      { id: "a", label: "Darken the body text", detail: "Bump text to #4A4A4A for comfortable AA.", filter: "contrast(1.14) brightness(0.98)" },
-      { id: "b", label: "Lighten the background", detail: "Raise the surface lightness behind text.", filter: "brightness(1.06)" },
+      { id: "a", label: "Darken the text", detail: "Use #4A4A4A for AA.", filter: "contrast(1.14) brightness(0.98)" },
+      { id: "b", label: "Lighten the bg", detail: "Brighter surface behind.", filter: "brightness(1.06)" },
     ],
   },
   {
-    title: "Inconsistent spacing",
-    explanation:
-      "Gaps between sections vary, which makes the layout feel a little restless.",
+    title: "Uneven spacing",
+    explanation: "Section gaps feel restless.",
     severity: "medium",
     x: 74,
     y: 34,
     solutions: [
-      { id: "a", label: "Snap to an 8-pt grid", detail: "Align all padding to an 8-pt rhythm.", filter: "contrast(1.04)" },
-      { id: "b", label: "Group related items", detail: "Tighten within groups, widen between them." },
+      { id: "a", label: "Snap to 8-pt grid", detail: "One spacing rhythm.", filter: "contrast(1.04)" },
+      { id: "b", label: "Group related items", detail: "Tight in, loose between." },
     ],
   },
   {
-    title: "Touch targets feel tight",
-    explanation:
-      "A couple of tap areas are under 44px, which can be fiddly on a phone.",
+    title: "Tight tap targets",
+    explanation: "A few areas are under 44px.",
     severity: "low",
     x: 48,
     y: 86,
     solutions: [
-      { id: "a", label: "Pad to 44×44px", detail: "Grow tap areas to the minimum target size." },
-      { id: "b", label: "Add row spacing", detail: "More vertical space between tappable rows." },
+      { id: "a", label: "Pad to 44px", detail: "Hit the min target size." },
+      { id: "b", label: "Add row spacing", detail: "More space between rows." },
     ],
   },
   {
-    title: "Crowded top area",
-    explanation:
-      "Several elements compete near the top, adding cognitive load up front.",
+    title: "Crowded top",
+    explanation: "Too much competes up top.",
     severity: "medium",
     x: 54,
     y: 14,
     solutions: [
-      { id: "a", label: "Add white space", detail: "Let the header breathe with more room.", filter: "brightness(1.04)" },
-      { id: "b", label: "Remove one element", detail: "Drop the least useful header item." },
-      { id: "c", label: "Collapse into a menu", detail: "Tuck secondary actions into a menu." },
+      { id: "a", label: "Add white space", detail: "Let the header breathe.", filter: "brightness(1.04)" },
+      { id: "b", label: "Remove one item", detail: "Drop the least useful." },
+      { id: "c", label: "Collapse to a menu", detail: "Tuck extras away." },
     ],
   },
 ];
 
 const STRENGTHS = [
-  "Lovely, consistent color palette",
-  "Type pairing feels clean and modern",
-  "Generous, comfortable white space",
-  "Friendly, legible iconography",
-  "Cohesive rounded components",
-  "Solid alignment down a clear grid",
+  "Consistent color palette",
+  "Clean, modern type",
+  "Comfortable white space",
+  "Friendly iconography",
+  "Cohesive components",
+  "Solid grid alignment",
 ];
 
 function shuffle<T>(arr: T[], seed: number): T[] {
@@ -126,32 +120,29 @@ export function analyze(designType: DesignType, seed = 1): Analysis {
 
   const strengths = shuffle(STRENGTHS, seed + 7).slice(0, count === 0 ? 4 : 3);
 
-  const type = designType.toLowerCase();
   const clean = count === 0;
   const headline = clean
-    ? "This one's a stunner ✨"
+    ? "A stunner ✨"
     : score >= 86
-      ? "Really strong — nice eye!"
+      ? "Really strong, nice eye!"
       : score >= 78
         ? "Solid start, lots to love."
         : "Great bones to build on.";
 
   const summary = clean
-    ? `I went looking for problems across your ${type} and honestly came up empty — hierarchy, spacing, contrast and clarity are all dialed in. Ship it with confidence.`
-    : `${
-        score >= 85 ? "This is close to ship-ready" : "A few focused tweaks will lift this fast"
-      }. I looked across your ${type} and pulled out the ${
-        count === 1 ? "one change" : `${count} changes`
-      } with the biggest payoff — pick the fix you like for each.`;
+    ? "Couldn't find a thing to fix. Ship it with confidence."
+    : score >= 85
+      ? "Close to ship-ready. Pick a fix for each below."
+      : "A few tweaks lift this fast. Pick a fix for each.";
 
   return { id: `a${seed}`, score, headline, summary, strengths, issues };
 }
 
 export const LOADING_MESSAGES = [
   "Munching on the details…",
-  "Checking visual hierarchy…",
-  "Measuring spacing rhythm…",
+  "Checking hierarchy…",
+  "Measuring spacing…",
   "Tasting the contrast…",
-  "Spotting the main CTA…",
-  "One more delicious second…",
+  "Spotting the CTA…",
+  "One more second…",
 ];

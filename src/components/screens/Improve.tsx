@@ -1,7 +1,7 @@
 "use client";
 
 import type { Analysis, Choices } from "@/lib/types";
-import BeforeAfterSlider from "../BeforeAfterSlider";
+import ScratchReveal from "../ScratchReveal";
 import { GlassButton, IconButton } from "../ui";
 
 export default function Improve({
@@ -47,17 +47,17 @@ export default function Improve({
 
       <div className="mt-2 text-center">
         <h2 className="font-display text-[1.9rem] font-semibold text-[var(--ink)]">
-          Before <span className="text-[var(--ink-faint)]">·</span> After ✨
+          Your glow-up ✨
         </h2>
         <p className="mt-1.5 text-[14px] text-[var(--ink-soft)]">
           {applied.length > 0
-            ? "Built from the fixes you picked — drag to compare."
-            : "You discarded every fix, so this is all you. Drag to compare."}
+            ? "Swipe the dust away to reveal it."
+            : "All you, no edits. Swipe to see."}
         </p>
       </div>
 
       <div className="mx-auto mt-5 w-full max-w-[300px]">
-        <BeforeAfterSlider before={image} afterFilter={afterFilter} />
+        <ScratchReveal before={image} afterFilter={afterFilter} />
       </div>
 
       <div className="glass mt-6 rounded-3xl p-5">
@@ -82,7 +82,7 @@ export default function Improve({
                     {sol.label}
                   </span>
                   <span className="block text-[12.5px] leading-snug text-[var(--ink-soft)]">
-                    For: {issue.title} — {sol.detail}
+                    For: {issue.title}, {sol.detail}
                   </span>
                 </span>
               </li>
@@ -90,14 +90,14 @@ export default function Improve({
           </ul>
         ) : (
           <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--ink-soft)]">
-            You kept your original look — sometimes the best edit is none. Trust
+            You kept your original look, sometimes the best edit is none. Trust
             those instincts. 💛
           </p>
         )}
       </div>
 
       <GlassButton className="mt-6 w-full" variant="cool" onClick={onDone}>
-        Done — saved to history
+        Done, saved to history
       </GlassButton>
     </div>
   );

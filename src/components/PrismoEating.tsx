@@ -1,5 +1,5 @@
 /**
- * Prismo munching a pickle — the loading mascot.
+ * Prismo munching a pickle, the loading mascot.
  * Profile head chews (gentle rotation) while the hand bobs a pickle to the
  * mouth and crumbs fly. Pure SVG + CSS keyframes (.chew, .bring-pickle, .crumb).
  */

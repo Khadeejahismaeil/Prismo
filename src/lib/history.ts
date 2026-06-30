@@ -17,7 +17,7 @@ export function addHistory(entry: HistoryEntry): HistoryEntry[] {
   try {
     window.localStorage.setItem(KEY, JSON.stringify(next));
   } catch {
-    // storage full (large data URLs) — drop the oldest and retry once
+    // storage full (large data URLs), drop the oldest and retry once
     try {
       window.localStorage.setItem(KEY, JSON.stringify(next.slice(0, 10)));
     } catch {
