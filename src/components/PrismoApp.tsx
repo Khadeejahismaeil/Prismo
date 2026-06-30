@@ -138,6 +138,7 @@ export default function PrismoApp() {
       {screen === "improve" && analysis && (
         <Improve
           image={image}
+          designType={designType}
           analysis={analysis}
           choices={choices}
           onBack={() => setScreen("results")}

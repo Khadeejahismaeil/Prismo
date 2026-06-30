@@ -10,9 +10,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export default function ScratchReveal({
   before,
   afterFilter,
+  afterHtml,
 }: {
   before: string;
   afterFilter?: string;
+  /** When set, the revealed "after" is a live HTML mockup instead of the image. */
+  afterHtml?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -154,13 +157,22 @@ export default function ScratchReveal({
       className="relative aspect-[9/16] w-full touch-none select-none overflow-hidden rounded-3xl border border-white/60 bg-white shadow-[0_20px_50px_-22px_rgba(54,32,44,0.5)]"
     >
       {/* enhanced design underneath */}
-      <img
-        src={before}
-        alt="Your enhanced design"
-        draggable={false}
-        className="absolute inset-0 h-full w-full object-cover"
-        style={afterFilter ? { filter: afterFilter } : undefined}
-      />
+      {afterHtml ? (
+        <iframe
+          title="Your enhanced design"
+          srcDoc={afterHtml}
+          sandbox=""
+          className="absolute inset-0 h-full w-full border-0 bg-white"
+        />
+      ) : (
+        <img
+          src={before}
+          alt="Your enhanced design"
+          draggable={false}
+          className="absolute inset-0 h-full w-full object-cover"
+          style={afterFilter ? { filter: afterFilter } : undefined}
+        />
+      )}
 
       {/* before reference chip */}
       <div className="pointer-events-none absolute left-2.5 top-2.5 z-20 flex flex-col items-center">
