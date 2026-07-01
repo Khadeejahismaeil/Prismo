@@ -27,7 +27,7 @@ const PRINCIPLES = `Review through these principles:
 - Restraint; boldness in one signature element, cut decoration that serves nothing.
 - Copy is design material; plain active end-user language, specific over clever.`;
 
-const SYSTEM = `You are Prismo, a senior product designer reviewing a UI screenshot. Be specific, warm, and constructive. ${PRINCIPLES} Keep every piece of text short and concrete.`;
+const SYSTEM = `You are Prismo, a senior product designer giving a full visual UI/UX review of a screenshot. Look at the whole interface — layout, visual hierarchy, CTA prominence, component consistency, spacing and rhythm, and overall polish — not just the text. Be specific, warm, and constructive, and ground every point in what is actually visible. ${PRINCIPLES} Keep every piece of text short and concrete.`;
 
 const clamp = (n: unknown, lo: number, hi: number, fallback: number) => {
   const v = typeof n === "number" && Number.isFinite(n) ? n : fallback;
@@ -62,7 +62,7 @@ function measuredIssues(m: Measurements): Issue[] {
   const fails = text
     .filter((e) => (e.fontPx >= 28 ? !e.aaLarge : !e.aa))
     .sort((a, b) => a.contrast - b.contrast)
-    .slice(0, 3);
+    .slice(0, 2);
   return fails.map((e, i) => {
     const need = e.fontPx >= 28 ? "3:1" : "4.5:1";
     return {
@@ -101,29 +101,43 @@ function metricsText(els: MeasuredElement[], m: Measurements): string {
     .map((e) => `${e.id}: "${e.text}" | ${e.fontPx}px | ${e.contrast}:1`)
     .join("\n");
   const pal = m.palette.map((p) => `${p.hex} ${p.pct}%`).join(", ");
-  return `Numbered boxes mark detected text. MEASURED facts (already computed — never restate or invent these numbers):\nid: "text" | fontPx | contrast\n${rows}\nPalette: ${pal}`;
+  return `The image has numbered red boxes over detected text. Use these MEASURED facts as EVIDENCE for your points (never restate them as their own issue, and never invent numbers):
+id: "text" | fontPx | contrast
+${rows}
+Palette: ${pal}`;
 }
 
 function qualInstruction(designType: string, els: MeasuredElement[], m: Measurements): string {
-  return `Review this ${designType} screenshot. ${metricsText(els, m)}
+  return `Give a full visual UI/UX review of this ${designType} screen. Look at the whole interface, not just the text.
+
+${metricsText(els, m)}
+
+Examine ALL of these and surface the MOST impactful problems (mix of dimensions, not just text):
+- Layout & alignment: balance, alignment to a grid, awkward gaps, crowding, or empty dead space.
+- Visual hierarchy: does the most important element lead the eye? Are secondary elements too loud or too quiet?
+- CTA visibility: is the primary action obvious and prominent, or does it blend into the background?
+- Component consistency: consistent buttons, cards, corner radii, icon style, and type scale.
+- Spacing & rhythm: even padding/margins, comfortable breathing room, a consistent spacing scale.
+- Overall UX polish: refinement, distinctiveness vs a templated look, and the design principles above.
+
+Use the measured facts as evidence — e.g. "the greeting is both small (25px) and low-contrast (1.6:1), so the header reads as an afterthought." IMPORTANT: text contrast/readability is already fully measured and reported separately, so do NOT include any issue whose main point is contrast. Spend all of your issue slots on layout, hierarchy, CTA, consistency, spacing, and polish (you may still cite a contrast number as supporting evidence for one of those).
 
 Return ONLY a JSON object:
 {
-  "craftScore": integer 0-100 (your qualitative judgment of craft/distinctiveness),
+  "craftScore": integer 0-100 (your holistic judgment of visual + UX quality),
   "headline": short phrase, max 5 words,
   "summary": one short sentence,
   "strengths": array of 2-4 very short phrases,
-  "issues": array of up to 4 qualitative problems, most impactful first, each:
-    { "markId": integer (the numbered box this is about, or 0 if none),
+  "issues": array of up to 4 problems, most impactful first, spanning the dimensions above, each:
+    { "markId": integer (the numbered box the issue is about, or 0 if it concerns the whole layout/region),
       "title": 2-4 word label,
-      "explanation": one short, plain sentence,
+      "explanation": one short, plain sentence (cite a measured fact when relevant),
       "severity": "high" | "medium" | "low",
       "solutions": array of 2-3 fixes, each { "label": 2-4 word action, "detail": one short clause } }
 }
 Rules:
-- Reference real locations by markId. Do NOT invent or restate contrast numbers — they are given and handled separately.
-- Only QUALITATIVE/principle issues (hierarchy, CTA clarity, distinctiveness, spacing, copy). Skip contrast.
-- If the design is strong, return few/no issues and a high craftScore.
+- Reference locations by markId. Ground every issue in what is visible.
+- If the design is genuinely strong, return few/no issues and a high craftScore.
 - Always return valid JSON, never prose.`;
 }
 
@@ -161,10 +175,10 @@ function coerceQualitative(raw: unknown, map: MarkMap, startIdx: number): { issu
 
 /* ---------- fallback: plain image → LLM (no measurements) ---------- */
 function fallbackInstruction(designType: string): string {
-  return `Review this ${designType} screenshot. Respond with ONLY a JSON object:
+  return `Give a full visual UI/UX review of this ${designType} screen — layout, visual hierarchy, CTA visibility, component consistency, spacing/rhythm, and overall polish. Respond with ONLY a JSON object:
 { "craftScore": 0-100, "headline": "<=5 words", "summary": "one sentence", "strengths": ["2-4 short"],
   "issues": [ up to 4 { "markId": 0, "title": "2-4 words", "explanation": "one sentence", "severity": "high|medium|low", "solutions": [ {"label":"2-4 words","detail":"short"} ] } ] }
-Ground issues in the real image. If strong, few/no issues + high craftScore. Always valid JSON.`;
+Ground every issue in what is visible, spanning the dimensions above. If strong, few/no issues + high craftScore. Always valid JSON.`;
 }
 
 export async function POST(req: Request) {
@@ -221,7 +235,10 @@ export async function POST(req: Request) {
         console.warn("[analyze] qualitative pass failed, returning measured-only:", e instanceof Error ? e.message : e);
       }
 
-      const issues = (q ? [...det, ...q.issues] : det).slice(0, 5);
+      const rank: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
+      const issues = (q ? [...det, ...q.issues] : det)
+        .sort((a, b) => rank[a.severity] - rank[b.severity])
+        .slice(0, 6);
       const score = blendedScore(measurements, q ? q.craft : 72);
       const analysis: Analysis = {
         id: `a${Date.now()}`,
