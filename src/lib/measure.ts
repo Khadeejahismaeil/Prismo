@@ -148,28 +148,33 @@ export async function measureDesign(buffer: Buffer): Promise<Measurements> {
     return w > 6 && h > 6 && h < H * 0.5; // sane text boxes only
   });
 
-  const elements: MeasuredElement[] = lines.map((l, idx) => {
-    const { fg, bg } = fgBg(raw as Buffer, W, ch, l.bbox);
-    const contrast = contrastRatio(fg, bg);
-    const h = l.bbox.y1 - l.bbox.y0;
-    // large text (>=24px or >=18.66px bold) gets the relaxed 3:1 threshold
-    return {
-      id: idx + 1,
-      text: l.text.slice(0, 60),
-      x: l.bbox.x0,
-      y: l.bbox.y0,
-      w: l.bbox.x1 - l.bbox.x0,
-      h,
-      fontPx: h,
-      fg,
-      bg,
-      contrast: Math.round(contrast * 100) / 100,
-      aa: contrast >= 4.5,
-      aaLarge: contrast >= 3,
-    };
-  });
+  const elements: MeasuredElement[] = lines
+    .map((l) => {
+      const { fg, bg } = fgBg(raw as Buffer, W, ch, l.bbox);
+      const contrast = contrastRatio(fg, bg);
+      const h = l.bbox.y1 - l.bbox.y0;
+      return {
+        id: 0, // assigned after filtering
+        text: l.text.slice(0, 60),
+        x: l.bbox.x0,
+        y: l.bbox.y0,
+        w: l.bbox.x1 - l.bbox.x0,
+        h,
+        fontPx: h,
+        fg,
+        bg,
+        contrast: Math.round(contrast * 100) / 100,
+        aa: contrast >= 4.5,
+        aaLarge: contrast >= 3,
+      };
+    })
+    // Drop junk detections: a contrast at/near 1.0 means fg≈bg (a uniform
+    // region with no distinguishable text — an OCR mis-detection, not real
+    // low-contrast text), and require at least 3 alphanumeric characters.
+    .filter((e) => e.contrast >= 1.2 && e.text.replace(/[^a-z0-9]/gi, "").length >= 3)
+    .map((e, i) => ({ ...e, id: i + 1 }));
 
-  const textEls = elements.filter((e) => e.text.length >= 2);
+  const textEls = elements;
   const fails = textEls.filter((e) => (e.fontPx >= 28 ? !e.aaLarge : !e.aa));
   const contrastFailRate = textEls.length ? fails.length / textEls.length : 0;
 
