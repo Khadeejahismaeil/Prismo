@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { Analysis, Choices, Severity } from "@/lib/types";
+import type { Analysis, Choices, Severity, Source } from "@/lib/types";
 import Prismo from "../Prismo";
+import SourcePreview from "../SourcePreview";
 import { GlassButton, IconButton, ScoreRing } from "../ui";
 
 const sev: Record<Severity, { ring: string; chip: string; label: string }> = {
@@ -52,7 +53,7 @@ function Strengths({ items }: { items: string[] }) {
 }
 
 export default function Results({
-  image,
+  source,
   analysis,
   choices,
   onChoose,
@@ -61,7 +62,7 @@ export default function Results({
   onDone,
   onHistory,
 }: {
-  image: string;
+  source: Source;
   analysis: Analysis;
   choices: Choices;
   onChoose: (issueId: string, value: string) => void;
@@ -145,29 +146,30 @@ export default function Results({
         </p>
         <div className="glass relative overflow-hidden rounded-3xl p-1.5">
           <div className="relative overflow-hidden rounded-[1.35rem]">
-            <img src={image} alt="Your design with annotations" className="block w-full" />
-            {analysis.issues.map((issue, i) => {
-              const discarded = choices[issue.id] === "discarded";
-              return (
-                <button
-                  key={issue.id}
-                  onClick={() => focusIssue(i)}
-                  aria-label={`Issue ${i + 1}: ${issue.title}`}
-                  className="absolute grid h-9 w-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-sm font-bold text-white"
-                  style={{
-                    left: `${issue.x}%`,
-                    top: `${issue.y}%`,
-                    background: sev[issue.severity].ring,
-                    border: "2.5px solid rgba(255,255,255,0.95)",
-                    boxShadow: `0 6px 16px -4px ${sev[issue.severity].ring}`,
-                    opacity: discarded ? 0.35 : 1,
-                    transform: `translate(-50%,-50%) scale(${active === i ? 1.2 : 1})`,
-                  }}
-                >
-                  {i + 1}
-                </button>
-              );
-            })}
+            <SourcePreview source={source} viewport={analysis.viewport}>
+              {analysis.issues.map((issue, i) => {
+                const discarded = choices[issue.id] === "discarded";
+                return (
+                  <button
+                    key={issue.id}
+                    onClick={() => focusIssue(i)}
+                    aria-label={`Issue ${i + 1}: ${issue.title}`}
+                    className="absolute z-10 grid h-9 w-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-sm font-bold text-white"
+                    style={{
+                      left: `${issue.x}%`,
+                      top: `${issue.y}%`,
+                      background: sev[issue.severity].ring,
+                      border: "2.5px solid rgba(255,255,255,0.95)",
+                      boxShadow: `0 6px 16px -4px ${sev[issue.severity].ring}`,
+                      opacity: discarded ? 0.35 : 1,
+                      transform: `translate(-50%,-50%) scale(${active === i ? 1.2 : 1})`,
+                    }}
+                  >
+                    {i + 1}
+                  </button>
+                );
+              })}
+            </SourcePreview>
           </div>
         </div>
       </div>
@@ -240,6 +242,11 @@ export default function Results({
                       {issue.metric && (
                         <p className="mt-2 inline-block rounded-lg bg-[var(--ink)]/5 px-2 py-1 font-mono text-[11px] font-medium text-[var(--ink)]">
                           {issue.metric}
+                        </p>
+                      )}
+                      {issue.incomplete && !issue.metric && (
+                        <p className="mt-2 inline-block rounded-lg bg-[var(--ink)]/5 px-2 py-1 text-[11px] font-medium text-[var(--ink-soft)]">
+                          Contrast couldn&apos;t be measured here (sits on a gradient or image)
                         </p>
                       )}
                       <p className="mt-3 text-[11px] font-bold uppercase tracking-wider text-[var(--ink-faint)]">

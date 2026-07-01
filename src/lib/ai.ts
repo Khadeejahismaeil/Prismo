@@ -29,6 +29,15 @@ export type VisionRequest = {
   model?: string;
 };
 
+/** Text-only request — no image. Used by the source (HTML/Figma) pipeline. */
+export type TextRequest = {
+  system: string;
+  prompt: string;
+  maxTokens?: number;
+  temperature?: number;
+  model?: string;
+};
+
 export function activeProvider(): Provider {
   return (process.env.AI_PROVIDER || "gemini").toLowerCase() === "openrouter"
     ? "openrouter"
@@ -90,6 +99,29 @@ async function geminiVision(req: VisionRequest): Promise<string> {
         maxOutputTokens: req.maxTokens ?? 1024,
         // Flash "thinks" by default and can burn the whole output budget; the
         // structured-JSON / HTML tasks here don't need it.
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+    return res.text ?? "";
+  } catch (e) {
+    throw normalizeGeminiError(e);
+  }
+}
+
+/* ---------------- Gemini (official SDK, text only) ---------------- */
+async function geminiText(req: TextRequest): Promise<string> {
+  const apiKey = geminiKey();
+  if (!apiKey) throw new Error(missingKeyMessage());
+
+  const ai = new GoogleGenAI({ apiKey });
+  try {
+    const res = await ai.models.generateContent({
+      model: req.model || process.env.GEMINI_MODEL || GEMINI_DEFAULT,
+      contents: [{ role: "user", parts: [{ text: req.prompt }] }],
+      config: {
+        systemInstruction: req.system,
+        temperature: req.temperature ?? 0.4,
+        maxOutputTokens: req.maxTokens ?? 1024,
         thinkingConfig: { thinkingBudget: 0 },
       },
     });
@@ -162,7 +194,50 @@ async function openrouterVision(req: VisionRequest): Promise<string> {
   }
 }
 
+/* ---------------- OpenRouter (legacy, text only) ---------------- */
+async function openrouterText(req: TextRequest): Promise<string> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error(missingKeyMessage());
+
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 60_000);
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      signal: ctrl.signal,
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://prismo.local",
+        "X-Title": "Prismo",
+      },
+      body: JSON.stringify({
+        model: req.model || process.env.OPENROUTER_MODEL || OPENROUTER_DEFAULT,
+        temperature: req.temperature ?? 0.4,
+        max_tokens: req.maxTokens ?? 1024,
+        messages: [
+          { role: "system", content: req.system },
+          { role: "user", content: req.prompt },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      throw new Error(`Model request failed (${res.status}): ${detail.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    return String(data?.choices?.[0]?.message?.content ?? "");
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 /** Send a system prompt + text prompt + one inline image, get the raw text back. */
 export async function callVision(req: VisionRequest): Promise<string> {
   return activeProvider() === "gemini" ? geminiVision(req) : openrouterVision(req);
+}
+
+/** Send a system prompt + text prompt (no image), get the raw text back. */
+export async function callText(req: TextRequest): Promise<string> {
+  return activeProvider() === "gemini" ? geminiText(req) : openrouterText(req);
 }

@@ -7,9 +7,11 @@ import { GlassButton } from "../ui";
 export default function Welcome({
   initialName,
   onContinue,
+  onDemo,
 }: {
   initialName: string;
   onContinue: (name: string) => void;
+  onDemo: () => void;
 }) {
   const [name, setName] = useState(initialName);
 
@@ -50,6 +52,12 @@ export default function Welcome({
       >
         Nice to meet you →
       </GlassButton>
+      <button
+        onClick={onDemo}
+        className="press mx-auto mt-3 text-sm font-semibold text-[var(--ink-soft)]"
+      >
+        ▶︎ Watch a quick demo
+      </button>
     </div>
   );
 }

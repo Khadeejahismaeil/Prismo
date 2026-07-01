@@ -65,8 +65,14 @@ export default function History({
               onClick={() => onOpen(e)}
               className="press glass flex items-center gap-3.5 rounded-3xl p-3 text-left"
             >
-              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-white">
-                <img src={e.image} alt="" className="h-full w-full object-cover" />
+              <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white">
+                {e.image ? (
+                  <img src={e.image} alt="" className="h-full w-full object-cover" />
+                ) : e.source?.kind === "html" ? (
+                  <iframe title="" srcDoc={e.source.payload} sandbox="" className="pointer-events-none h-full w-full border-0" />
+                ) : (
+                  <span className="text-2xl">🎨</span>
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold text-[var(--ink)]">{e.designType}</p>

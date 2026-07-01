@@ -1,28 +1,96 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+
+/** Logical layout width the design is rendered at before scaling to fit. */
+const LW = 390;
 
 /**
- * Magic-dust reveal. The enhanced design sits underneath a layer of sparkling
- * dust painted on a canvas; the user swipes to wipe the dust away and reveal
- * the glow-up. Once enough is cleared it dissolves the rest on its own.
+ * The glow-up viewer. The improved design sits under sparkling dust you swipe
+ * away, with a Before / After toggle. The design is rendered at a fixed logical
+ * width and scaled to fit the available space, so the WHOLE thing is visible
+ * with NO scrolling — at its true proportions.
  */
 export default function ScratchReveal({
   before,
+  beforeHtml,
   afterFilter,
   afterHtml,
+  aspectRatio,
 }: {
-  before: string;
+  before?: string;
+  beforeHtml?: string;
   afterFilter?: string;
-  /** When set, the revealed "after" is a live HTML mockup instead of the image. */
   afterHtml?: string;
+  aspectRatio?: number;
 }) {
+  const fitRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const lastSample = useRef(0);
   const strokes = useRef(0);
   const [revealed, setRevealed] = useState(false);
+  const [view, setView] = useState<"after" | "before">("after");
+  const [avail, setAvail] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+
+  const ar = aspectRatio ?? 9 / 16;
+  const guessH = Math.round(LW / ar);
+  // Logical content heights (measured from the rendered content).
+  const [afterH, setAfterH] = useState(guessH);
+  const [beforeH, setBeforeH] = useState(guessH);
+
+  const canToggle = Boolean(afterHtml);
+  const dustActive = view === "after" && !revealed;
+
+  // Which content height drives the card right now.
+  const activeH = view === "before" ? beforeH : afterHtml ? afterH : beforeH;
+  const scale = avail.w && avail.h ? Math.min(avail.w / LW, avail.h / activeH) : 0;
+  const cardW = Math.round(LW * scale);
+  const cardH = Math.round(activeH * scale);
+
+  const sparkles = useMemo(
+    () =>
+      Array.from({ length: 34 }, (_, i) => ({
+        left: `${(i * 37) % 100}%`,
+        top: `${(i * 53) % 100}%`,
+        size: 8 + ((i * 7) % 16),
+        dur: `${1.8 + ((i * 13) % 22) / 10}s`,
+        delay: `${((i * 29) % 20) / 10}s`,
+      })),
+    [],
+  );
+
+  // Track the available box.
+  useLayoutEffect(() => {
+    const el = fitRef.current;
+    if (!el) return;
+    const measure = () => setAvail({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  /** True content height of a same-origin srcdoc iframe. We measure the bottom
+   *  of the body's children (not scrollHeight), so `html,body{height:100%}`
+   *  doesn't inflate it to the iframe's own height. */
+  const measureFrame = (el: HTMLIFrameElement, set: (h: number) => void) => {
+    try {
+      const doc = el.contentDocument;
+      const body = doc?.body;
+      if (!body) return;
+      let bottom = 0;
+      for (const child of Array.from(body.children)) {
+        bottom = Math.max(bottom, (child as HTMLElement).getBoundingClientRect().bottom);
+      }
+      const padBottom = parseFloat(doc!.defaultView!.getComputedStyle(body).paddingBottom) || 0;
+      const h = Math.ceil(bottom + padBottom);
+      if (h > 40) set(h);
+    } catch {
+      /* cross-origin — keep the guess */
+    }
+  };
 
   const paintDust = useCallback(() => {
     const canvas = canvasRef.current;
@@ -39,7 +107,6 @@ export default function ScratchReveal({
     const w = rect.width;
     const h = rect.height;
 
-    // base magical gradient
     const g = ctx.createLinearGradient(0, 0, w, h);
     g.addColorStop(0, "#f8c8e8");
     g.addColorStop(0.45, "#cdb8f5");
@@ -47,7 +114,6 @@ export default function ScratchReveal({
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
 
-    // soft glowing blobs
     const blobs = [
       [w * 0.25, h * 0.3, "#ffe39e"],
       [w * 0.75, h * 0.6, "#ffc2e0"],
@@ -61,31 +127,6 @@ export default function ScratchReveal({
       ctx.fillRect(0, 0, w, h);
     });
 
-    // sparkle stars (deterministic positions)
-    const star = (cx: number, cy: number, r: number, a: number) => {
-      ctx.save();
-      ctx.globalAlpha = a;
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      for (let i = 0; i < 4; i++) {
-        const ang = (Math.PI / 2) * i;
-        ctx.lineTo(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
-        ctx.lineTo(cx + Math.cos(ang + Math.PI / 4) * r * 0.32, cy + Math.sin(ang + Math.PI / 4) * r * 0.32);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    };
-    let s = 7;
-    const rnd = () => {
-      s = (s * 9301 + 49297) % 233280;
-      return s / 233280;
-    };
-    for (let i = 0; i < 90; i++) {
-      star(rnd() * w, rnd() * h, 2 + rnd() * 5, 0.5 + rnd() * 0.5);
-    }
-
-    // hint
     ctx.fillStyle = "rgba(83,46,68,0.8)";
     ctx.font = "600 15px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "center";
@@ -98,9 +139,10 @@ export default function ScratchReveal({
   }, []);
 
   useEffect(() => {
+    if (!dustActive || !cardW || !cardH) return;
     const id = requestAnimationFrame(paintDust);
     return () => cancelAnimationFrame(id);
-  }, [paintDust]);
+  }, [dustActive, paintDust, cardW, cardH]);
 
   const finish = useCallback(() => {
     const canvas = canvasRef.current;
@@ -132,15 +174,12 @@ export default function ScratchReveal({
       const rect = canvas.getBoundingClientRect();
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
       if (!ctx) return;
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
       ctx.globalCompositeOperation = "destination-out";
       ctx.beginPath();
-      ctx.arc(x, y, 30, 0, Math.PI * 2);
+      ctx.arc(clientX - rect.left, clientY - rect.top, 30, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalCompositeOperation = "source-over";
 
-      // require real swiping before we consider auto,revealing
       strokes.current += 1;
       const now = performance.now();
       if (strokes.current > 6 && now - lastSample.current > 140) {
@@ -151,76 +190,131 @@ export default function ScratchReveal({
     [sample],
   );
 
-  return (
+  /** A design layer rendered at LW and scaled by `scale`, positioned top-left. */
+  const layer = (node: React.ReactNode, logicalH: number, z: number) => (
     <div
-      ref={wrapRef}
-      className="relative aspect-[9/16] w-full touch-none select-none overflow-hidden rounded-3xl border border-white/60 bg-white shadow-[0_20px_50px_-22px_rgba(54,32,44,0.5)]"
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: LW,
+        height: logicalH,
+        transform: `scale(${scale || 0.0001})`,
+        transformOrigin: "top left",
+        zIndex: z,
+      }}
     >
-      {/* enhanced design underneath */}
-      {afterHtml ? (
-        <iframe
-          title="Your enhanced design"
-          srcDoc={afterHtml}
-          sandbox=""
-          className="absolute inset-0 h-full w-full border-0 bg-white"
-        />
-      ) : (
-        <img
-          src={before}
-          alt="Your enhanced design"
-          draggable={false}
-          className="absolute inset-0 h-full w-full object-cover"
-          style={afterFilter ? { filter: afterFilter } : undefined}
-        />
-      )}
+      {node}
+    </div>
+  );
 
-      {/* before reference chip */}
-      <div className="pointer-events-none absolute left-2.5 top-2.5 z-20 flex flex-col items-center">
-        <div className="h-14 w-9 overflow-hidden rounded-lg border-2 border-white/90 shadow-md">
-          <img src={before} alt="" className="h-full w-full object-cover" />
-        </div>
-        <span className="mt-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
-          Before
-        </span>
-      </div>
+  const htmlFrame = (srcDoc: string, h: number, set: (n: number) => void) => (
+    <iframe
+      title="design"
+      srcDoc={srcDoc}
+      sandbox="allow-same-origin"
+      scrolling="no"
+      style={{ width: LW, height: h, border: 0, background: "#fff" }}
+      onLoad={(e) => measureFrame(e.currentTarget, set)}
+    />
+  );
 
-      {/* revealed badge */}
-      <span
-        className="absolute right-3 top-3 z-20 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white transition-opacity duration-500"
-        style={{ opacity: revealed ? 1 : 0 }}
+  const rasterImg = (src: string, filter?: string) => (
+    <img
+      src={src}
+      alt="design"
+      draggable={false}
+      style={{ width: LW, height: "auto", display: "block", ...(filter ? { filter } : {}) }}
+      onLoad={(e) => {
+        const el = e.currentTarget;
+        if (el.naturalWidth) {
+          const h = Math.round((LW * el.naturalHeight) / el.naturalWidth);
+          setAfterH(h);
+          setBeforeH(h);
+        }
+      }}
+    />
+  );
+
+  const afterNode = afterHtml
+    ? htmlFrame(afterHtml, afterH, setAfterH)
+    : beforeHtml
+      ? htmlFrame(beforeHtml, beforeH, setBeforeH)
+      : before
+        ? rasterImg(before, afterFilter)
+        : null;
+
+  const beforeNode = beforeHtml ? htmlFrame(beforeHtml, beforeH, setBeforeH) : before ? rasterImg(before) : null;
+
+  return (
+    <div ref={fitRef} className="flex h-full w-full items-center justify-center">
+      <div
+        ref={wrapRef}
+        style={{ width: cardW || undefined, height: cardH || undefined }}
+        className="relative touch-none select-none overflow-hidden rounded-3xl border border-white/60 bg-white shadow-[0_20px_50px_-22px_rgba(54,32,44,0.5)]"
       >
-        After ✨
-      </span>
+        {afterNode && layer(afterNode, afterHtml ? afterH : beforeH, 0)}
+        {view === "before" && beforeNode && layer(beforeNode, beforeH, 30)}
 
-      {/* dust canvas */}
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 h-full w-full cursor-grab active:cursor-grabbing"
-        onPointerDown={(e) => {
-          drawing.current = true;
-          try {
-            (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-          } catch {
-            /* pointer not active (e.g. synthetic events) — safe to ignore */
-          }
-          erase(e.clientX, e.clientY);
-        }}
-        onPointerMove={(e) => {
-          if (drawing.current) erase(e.clientX, e.clientY);
-        }}
-        onPointerUp={() => (drawing.current = false)}
-        onPointerLeave={() => (drawing.current = false)}
-      />
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 h-full w-full cursor-grab active:cursor-grabbing"
+          style={{ display: dustActive ? "block" : "none", zIndex: 35 }}
+          onPointerDown={(e) => {
+            drawing.current = true;
+            try {
+              (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+            } catch {
+              /* ignore */
+            }
+            erase(e.clientX, e.clientY);
+          }}
+          onPointerMove={(e) => {
+            if (drawing.current && e.buttons === 1) erase(e.clientX, e.clientY);
+          }}
+          onPointerUp={() => (drawing.current = false)}
+          onPointerLeave={() => (drawing.current = false)}
+        />
 
-      {/* scratch again */}
-      {revealed && (
-        <button
-          onClick={paintDust}
-          className="press absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1.5 text-[11px] font-bold text-white backdrop-blur"
-        >
-          ✨ Sprinkle again
-        </button>
-      )}
+        {dustActive && (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ zIndex: 36 }}>
+            {sparkles.map((s, i) => (
+              <span
+                key={i}
+                className="sparkle"
+                style={{ left: s.left, top: s.top, fontSize: s.size, ["--dur" as string]: s.dur, animationDelay: s.delay }}
+              >
+                ✦
+              </span>
+            ))}
+          </div>
+        )}
+
+        {canToggle && (
+          <div className="absolute left-1/2 top-3 z-40 flex -translate-x-1/2 gap-0.5 rounded-full bg-black/45 p-0.5 backdrop-blur">
+            {(["before", "after"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`press rounded-full px-3.5 py-1 text-[11px] font-bold uppercase tracking-wider transition-colors ${
+                  view === v ? "bg-white text-[var(--ink)]" : "text-white/85"
+                }`}
+              >
+                {v === "before" ? "Before" : "After ✨"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {revealed && view === "after" && (
+          <button
+            onClick={paintDust}
+            className="press absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1.5 text-[11px] font-bold text-white backdrop-blur"
+          >
+            ✨ Sprinkle again
+          </button>
+        )}
+      </div>
     </div>
   );
 }

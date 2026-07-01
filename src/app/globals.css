@@ -189,6 +189,19 @@ body {
   50% { box-shadow: 0 0 0 8px rgba(231, 146, 156, 0); }
 }
 
+/* ---------- Twinkling / drifting sparkles on the glow-up reveal ---------- */
+@keyframes sparkle-twinkle {
+  0%, 100% { opacity: 0.15; transform: translateY(0) scale(0.6) rotate(0deg); }
+  50% { opacity: 1; transform: translateY(-7px) scale(1.15) rotate(20deg); }
+}
+.sparkle {
+  position: absolute;
+  color: #fff;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.8));
+  animation: sparkle-twinkle var(--dur, 2.4s) ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
 .text-gradient {
   background: var(--grad-primary);
   -webkit-background-clip: text;

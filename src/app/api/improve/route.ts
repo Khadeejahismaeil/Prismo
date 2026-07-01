@@ -6,30 +6,56 @@
  * sandboxed iframe. Key stays server-side.
  */
 
+import type { Source } from "@/lib/types";
 import { inspectImage, NOT_RASTER_MESSAGE } from "@/lib/image";
-import { callVision, missingKeyMessage, providerKeyPresent } from "@/lib/ai";
+import { callText, callVision, missingKeyMessage, providerKeyPresent } from "@/lib/ai";
 
 const SYSTEM = `You are a senior product designer and front-end engineer. You recreate a UI screen from a screenshot as a single self-contained HTML document, faithfully preserving its real content (text, numbers, labels, structure) so it is recognizably the same screen, then apply specific requested improvements and strong visual-design principles (distinctiveness over templated defaults, intentional typography, clear hierarchy, restraint). You output only HTML.`;
 
+const SYSTEM_SOURCE = `You are a senior product designer and front-end engineer. You are given the ACTUAL source of a UI screen (HTML or a Figma structure). You rewrite it as a single self-contained HTML document, faithfully preserving its real content (text, numbers, labels, structure) so it is recognizably the same screen, then apply specific requested improvements and strong visual-design principles (distinctiveness over templated defaults, intentional typography, clear hierarchy, restraint). You output only HTML.`;
+
 type Fix = { title?: string; label?: string; detail?: string };
 
-function instruction(designType: string, fixes: Fix[]) {
-  const list = fixes.length
+function fixList(fixes: Fix[]) {
+  return fixes.length
     ? fixes.map((f) => `- ${f.title}: ${f.label}${f.detail ? ` (${f.detail})` : ""}`).join("\n")
     : "- Tighten hierarchy, spacing, and contrast with restraint.";
+}
+
+const OUTPUT_RULES = `Requirements:
+- FIDELITY: keep ALL text, numbers, labels and the same overall layout/structure and element order. Do not add, remove, or reword content. Only improve the VISUAL styling (colour, typography, spacing, hierarchy, contrast). It must read as an exact replica of the original, restyled.
+- Inline <style> only. No external fonts, images, scripts, or frameworks. No JavaScript.
+- Use system fonts (font-family: system-ui, -apple-system, sans-serif).
+- Fill the viewport at the ORIGINAL proportions: html,body { margin:0; height:100%; }. No horizontal scroll.
+- Make it look intentional and distinctive, not templated.
+- Output ONLY the HTML document, starting with <!doctype html>. No markdown fences, no commentary.`;
+
+/** Instruction for source inputs — the model gets the real HTML/Figma structure. */
+function sourceInstruction(designType: string, fixes: Fix[], kind: "html" | "figma", payload: string) {
+  const material =
+    kind === "html"
+      ? `Here is the original HTML source:\n\n${payload.slice(0, 12000)}`
+      : `Here is the original Figma structure (JSON):\n\n${payload.slice(0, 12000)}`;
+  return `Rewrite this ${designType} screen as ONE self-contained HTML document, keeping its real content and structure so it is clearly the same screen, improved.
+
+${material}
+
+Apply these specific improvements:
+${fixList(fixes)}
+
+${OUTPUT_RULES}`;
+}
+
+/** Instruction for raster inputs — the model works from the screenshot. */
+function instruction(designType: string, fixes: Fix[]) {
   return `Recreate this ${designType} screen as ONE self-contained HTML document.
 
 Keep the real content from the screenshot: the same headings, labels, numbers and overall structure, so it is clearly the same screen, improved.
 
 Apply these specific improvements:
-${list}
+${fixList(fixes)}
 
-Requirements:
-- Inline <style> only. No external fonts, images, scripts, or frameworks. No JavaScript.
-- Use system fonts (font-family: system-ui, -apple-system, sans-serif).
-- A polished mobile screen that fills the viewport: html,body { margin:0; height:100%; }. Responsive, no horizontal scroll.
-- Make it look intentional and distinctive, not templated.
-- Output ONLY the HTML document, starting with <!doctype html>. No markdown fences, no commentary.`;
+${OUTPUT_RULES}`;
 }
 
 function extractHtml(text: string): string {
@@ -77,21 +103,18 @@ h2{font-size:14px;margin:22px 0 10px}
 </body></html>`;
 
 export async function POST(req: Request) {
-  let image = "";
+  let source: Source | null = null;
   let designType = "Mobile App";
   let fixes: Fix[] = [];
   try {
     const body = await req.json();
-    image = body.image ?? "";
     designType = body.designType ?? "Mobile App";
     fixes = Array.isArray(body.fixes) ? body.fixes : [];
+    source = body.source ?? (body.image ? { kind: "raster", payload: body.image } : null);
   } catch {
     return Response.json({ error: "Invalid request body" }, { status: 400 });
   }
-  if (!image) return Response.json({ error: "No image provided" }, { status: 400 });
-
-  const info = inspectImage(image);
-  console.log(`[improve] image ${info.kind} ${info.mime ?? "?"} ~${info.kb ?? "?"}KB raster=${info.isRaster}`);
+  if (!source || !source.payload) return Response.json({ error: "No design provided" }, { status: 400 });
 
   // Test path: return a sample improved screen without calling the model.
   if (process.env.USE_MOCK_ANALYSIS === "1") {
@@ -99,22 +122,32 @@ export async function POST(req: Request) {
     return Response.json({ html: MOCK_HTML });
   }
 
-  if (!info.isRaster) {
-    return Response.json({ error: NOT_RASTER_MESSAGE }, { status: 415 });
-  }
-
   if (!providerKeyPresent()) {
     return Response.json({ error: missingKeyMessage() }, { status: 503 });
   }
 
   try {
-    const content = await callVision({
-      system: SYSTEM,
-      prompt: instruction(designType, fixes),
-      imageDataUrl: image,
-      maxTokens: 4000,
-      temperature: 0.5,
-    });
+    let content: string;
+    if (source.kind === "html" || source.kind === "figma") {
+      // Source path: rewrite the real HTML/Figma structure (no pixel inference).
+      content = await callText({
+        system: SYSTEM_SOURCE,
+        prompt: sourceInstruction(designType, fixes, source.kind, source.payload),
+        maxTokens: 4000,
+        temperature: 0.5,
+      });
+    } else {
+      const info = inspectImage(source.payload);
+      console.log(`[improve] image ${info.kind} ${info.mime ?? "?"} ~${info.kb ?? "?"}KB raster=${info.isRaster}`);
+      if (!info.isRaster) return Response.json({ error: NOT_RASTER_MESSAGE }, { status: 415 });
+      content = await callVision({
+        system: SYSTEM,
+        prompt: instruction(designType, fixes),
+        imageDataUrl: source.payload,
+        maxTokens: 4000,
+        temperature: 0.5,
+      });
+    }
     const html = extractHtml(content);
     if (!html.toLowerCase().includes("<html") && !html.toLowerCase().includes("<!doctype")) {
       return Response.json({ error: "Model did not return HTML" }, { status: 502 });

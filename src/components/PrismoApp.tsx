@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Analysis, Choices, DesignType, HistoryEntry } from "@/lib/types";
+import type { Analysis, Choices, DesignType, HistoryEntry, Source } from "@/lib/types";
 import { requestAnalysis } from "@/lib/analyzeClient";
 import { addHistory, clearHistory, getHistory } from "@/lib/history";
+import { DEMO_SOURCE, DEMO_ANALYSIS, DEMO_AFTER_HTML } from "@/lib/demo";
 import PhoneFrame from "./PhoneFrame";
 import Welcome from "./screens/Welcome";
 import Upload from "./screens/Upload";
@@ -29,23 +30,31 @@ export default function PrismoApp() {
   const [screen, setScreen] = useState<Screen>("welcome");
   const [name, setName] = useState("");
   const [designType, setDesignType] = useState<DesignType>("Mobile App");
-  const [image, setImage] = useState<string>("");
+  const [source, setSource] = useState<Source | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [choices, setChoices] = useState<Choices>({});
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [demo, setDemo] = useState(false);
 
   useEffect(() => {
-    setHistory(getHistory());
+    let live = true;
+    (async () => {
+      const h = await getHistory();
+      if (live) setHistory(h);
+    })();
+    return () => {
+      live = false;
+    };
   }, []);
 
   const runAnalyze = useCallback(
-    async (type: DesignType, img: string) => {
+    async (type: DesignType, src: Source) => {
       setAnalyzeError(null);
       try {
         // Keep the pickle on screen for a beat even if the model is quick.
         const minWait = new Promise((r) => setTimeout(r, 3000));
-        const result = await requestAnalysis(img, type);
+        const result = await requestAnalysis(src, type);
         await minWait;
 
         const defaults = defaultChoices(result);
@@ -58,11 +67,12 @@ export default function PrismoApp() {
           designType: type,
           score: result.score,
           date: new Date().toISOString(),
-          image: img,
+          source: src,
+          ...(src.kind === "raster" ? { image: src.payload } : {}),
           analysis: result,
           choices: defaults,
         };
-        setHistory(addHistory(entry));
+        setHistory(await addHistory(entry));
         setScreen("results");
       } catch (e) {
         setAnalyzeError(e instanceof Error ? e.message : "Something went wrong.");
@@ -71,18 +81,38 @@ export default function PrismoApp() {
     [name],
   );
 
-  const startAnalyze = (type: DesignType, img: string) => {
+  const startAnalyze = (type: DesignType, src: Source) => {
+    setDemo(false);
     setDesignType(type);
-    setImage(img);
+    setSource(src);
     setAnalysis(null);
     setAnalyzeError(null);
     setScreen("analyzing");
-    runAnalyze(type, img);
+    runAnalyze(type, src);
+  };
+
+  /** Scripted, API-free walkthrough for presenting: preset input → fake
+   *  loading → preset results (glow-up uses a preset redesign in Improve). */
+  const startDemo = () => {
+    setDemo(true);
+    if (!name.trim()) setName("there");
+    setDesignType("Mobile App");
+    setSource(DEMO_SOURCE);
+    setAnalysis(null);
+    setAnalyzeError(null);
+    setScreen("analyzing");
+    setTimeout(() => {
+      setAnalysis(DEMO_ANALYSIS);
+      setChoices(defaultChoices(DEMO_ANALYSIS));
+      setScreen("results");
+    }, 2600);
   };
 
   const openEntry = (e: HistoryEntry) => {
+    setDemo(false);
     setDesignType(e.designType);
-    setImage(e.image);
+    // Legacy entries stored only `image`; synthesize a raster source for them.
+    setSource(e.source ?? { kind: "raster", payload: e.image ?? "" });
     setAnalysis(e.analysis);
     setChoices(e.choices ?? defaultChoices(e.analysis));
     setScreen("results");
@@ -97,6 +127,7 @@ export default function PrismoApp() {
             setName(n);
             setScreen("upload");
           }}
+          onDemo={startDemo}
         />
       )}
 
@@ -110,9 +141,9 @@ export default function PrismoApp() {
 
       {screen === "analyzing" && (
         <Analyzing
-          image={image}
+          source={source}
           error={analyzeError}
-          onRetry={() => runAnalyze(designType, image)}
+          onRetry={() => source && runAnalyze(designType, source)}
           onCancel={() => {
             setAnalyzeError(null);
             setScreen("upload");
@@ -120,9 +151,9 @@ export default function PrismoApp() {
         />
       )}
 
-      {screen === "results" && analysis && (
+      {screen === "results" && analysis && source && (
         <Results
-          image={image}
+          source={source}
           analysis={analysis}
           choices={choices}
           onChoose={(issueId, value) =>
@@ -135,14 +166,15 @@ export default function PrismoApp() {
         />
       )}
 
-      {screen === "improve" && analysis && (
+      {screen === "improve" && analysis && source && (
         <Improve
-          image={image}
+          source={source}
           designType={designType}
           analysis={analysis}
           choices={choices}
           onBack={() => setScreen("results")}
           onDone={() => setScreen("history")}
+          demoAfterHtml={demo ? DEMO_AFTER_HTML : undefined}
         />
       )}
 
@@ -151,7 +183,7 @@ export default function PrismoApp() {
           entries={history}
           onOpen={openEntry}
           onNew={() => setScreen("upload")}
-          onClear={() => setHistory(clearHistory())}
+          onClear={async () => setHistory(await clearHistory())}
         />
       )}
     </PhoneFrame>

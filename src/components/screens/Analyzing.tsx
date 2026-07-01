@@ -5,14 +5,15 @@ import PrismoEating from "../PrismoEating";
 import Prismo from "../Prismo";
 import { GlassButton } from "../ui";
 import { LOADING_MESSAGES } from "@/lib/mock";
+import type { Source } from "@/lib/types";
 
 export default function Analyzing({
-  image,
+  source,
   error,
   onRetry,
   onCancel,
 }: {
-  image: string;
+  source: Source | null;
   error: string | null;
   onRetry: () => void;
   onCancel: () => void;
@@ -53,7 +54,13 @@ export default function Analyzing({
   return (
     <div className="screen-enter flex min-h-full flex-col items-center justify-center px-8 text-center">
       <div className="glass mb-8 w-28 overflow-hidden rounded-2xl p-1.5 opacity-90">
-        <img src={image} alt="" className="aspect-[9/16] w-full rounded-xl object-cover" />
+        {source?.kind === "raster" ? (
+          <img src={source.payload} alt="" className="aspect-[9/16] w-full rounded-xl object-cover" />
+        ) : source?.kind === "html" ? (
+          <iframe title="" srcDoc={source.payload} sandbox="" className="pointer-events-none aspect-[9/16] w-full rounded-xl border-0 bg-white" />
+        ) : (
+          <div className="grid aspect-[9/16] w-full place-items-center rounded-xl bg-white text-3xl">🎨</div>
+        )}
       </div>
 
       <div className="w-52" style={{ animation: "floaty 3s ease-in-out infinite" }}>

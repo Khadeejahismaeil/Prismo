@@ -1,8 +1,11 @@
 import "server-only";
 import sharp from "sharp";
-import type { MeasuredElement } from "./measure";
 
 export type MarkMap = Record<number, { x: number; y: number }>; // id -> center in %
+
+/** Minimal shape needed to draw a numbered mark. MeasuredElement and
+ *  IR-derived boxes both satisfy it. */
+export type MarkInput = { id: number; x: number; y: number; w: number; h: number };
 
 /**
  * Set-of-Marks: draw numbered boxes over the detected elements and return the
@@ -13,7 +16,7 @@ export async function buildMarks(
   buffer: Buffer,
   width: number,
   height: number,
-  elements: MeasuredElement[],
+  elements: MarkInput[],
 ): Promise<{ dataUrl: string; map: MarkMap }> {
   const map: MarkMap = {};
   const parts: string[] = [];

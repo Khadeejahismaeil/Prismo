@@ -7,6 +7,17 @@ export type DesignType =
   | "Poster"
   | "Other";
 
+/** How the design entered Prismo. Drives which analysis pipeline runs. */
+export type SourceKind = "raster" | "html" | "figma";
+
+/**
+ * The design under review, in its original form.
+ *  - raster: payload is a data URL (PNG/JPG/WebP)
+ *  - html:   payload is an HTML document string (CSS inlined)
+ *  - figma:  payload is an exported Figma JSON string
+ */
+export type Source = { kind: SourceKind; payload: string };
+
 export type Severity = "low" | "medium" | "high";
 
 export type Solution = {
@@ -33,6 +44,11 @@ export type Issue = {
   measured?: boolean;
   /** Short measured fact shown as evidence, e.g. "2.1:1 contrast (needs 4.5:1)". */
   metric?: string;
+  /** The IR node this issue references (source pipeline only). */
+  nodeId?: string;
+  /** True when a measurement was attempted but could not be resolved (e.g.
+   *  contrast over a gradient) — shown as "couldn't measure" rather than a number. */
+  incomplete?: boolean;
 };
 
 export type Metrics = {
@@ -52,6 +68,11 @@ export type Analysis = {
   issues: Issue[];
   /** Deterministic measurements (present when the hybrid pipeline ran). */
   metrics?: Metrics;
+  /** Which pipeline produced this analysis. */
+  sourceKind?: SourceKind;
+  /** IR coordinate space (source pipeline) — lets the UI render the preview at
+   *  the exact width the markers were measured against. */
+  viewport?: { w: number; h: number };
 };
 
 /** A solution id, or "discarded" when the user keeps the original. */
@@ -65,7 +86,10 @@ export type HistoryEntry = {
   designType: DesignType;
   score: number;
   date: string; // ISO
-  image: string; // data URL
+  /** The original design source (raster data URL, HTML, or Figma JSON). */
+  source: Source;
+  /** Raster preview/thumbnail. Present for raster entries and legacy history. */
+  image?: string; // data URL
   analysis: Analysis;
   choices?: Choices;
 };

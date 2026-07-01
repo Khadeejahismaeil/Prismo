@@ -1,10 +1,11 @@
-import type { Analysis, DesignType } from "./types";
+import type { Analysis, DesignType, Source } from "./types";
+import { buildIR } from "./adapters";
 
 export type Fix = { title: string; label: string; detail: string };
 
 /** Ask the server to generate an improved version of the design as HTML. */
 export async function requestImprovement(
-  image: string,
+  source: Source,
   designType: DesignType,
   fixes: Fix[],
 ): Promise<string> {
@@ -15,7 +16,8 @@ export async function requestImprovement(
     res = await fetch("/api/improve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image, designType, fixes }),
+      // `image` kept for the raster path the improve route still expects.
+      body: JSON.stringify({ source, image: source.kind === "raster" ? source.payload : undefined, designType, fixes }),
       signal: controller.signal,
     });
   } catch {
@@ -39,17 +41,30 @@ export async function requestImprovement(
   return html;
 }
 
-/** Ask the server route to review a screenshot. Throws with a friendly message. */
+/**
+ * Ask the server to review a design. For HTML/Figma sources the IR is built
+ * HERE, in the browser (render + DOM measurement), and posted alongside the
+ * source; raster sources are measured server-side as before.
+ */
 export async function requestAnalysis(
-  image: string,
+  source: Source,
   designType: DesignType,
 ): Promise<Analysis> {
+  let ir: unknown = undefined;
+  if (source.kind === "html" || source.kind === "figma") {
+    try {
+      ir = await buildIR(source);
+    } catch (e) {
+      throw new Error(e instanceof Error ? e.message : "Couldn't read that design file.");
+    }
+  }
+
   let res: Response;
   try {
     res = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image, designType }),
+      body: JSON.stringify({ source, ir, designType }),
     });
   } catch {
     throw new Error("Couldn't reach the server. Check your connection.");

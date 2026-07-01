@@ -4,14 +4,17 @@
  * A premium phone shell. On large screens it renders an iPhone-style device
  * with a dynamic island + status bar; on small screens it goes full-bleed.
  */
+import InstallPrompt from "./InstallPrompt";
+
 export default function PhoneFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center p-0 sm:p-6">
       <div
         className="relative h-[100dvh] w-full overflow-hidden bg-transparent sm:h-[860px] sm:max-h-[92vh] sm:w-[400px] sm:rounded-[3rem] sm:border-[10px] sm:border-[#241318] sm:shadow-[0_50px_120px_-30px_rgba(54,32,44,0.65)]"
       >
-        {/* status bar */}
-        <div className="relative z-20 flex items-center justify-between px-7 pt-3 pb-1 text-[13px] font-semibold text-[var(--ink)]">
+        {/* Mock status bar — desktop only. On mobile/standalone the OS draws the
+            real status bar, and the content uses safe-area insets instead. */}
+        <div className="relative z-20 hidden items-center justify-between px-7 pt-3 pb-1 text-[13px] font-semibold text-[var(--ink)] sm:flex">
           <span>9:41</span>
           {/* dynamic island */}
           <div className="absolute left-1/2 top-2.5 h-7 w-24 -translate-x-1/2 rounded-full bg-[#241318]" />
@@ -35,10 +38,21 @@ export default function PhoneFrame({ children }: { children: React.ReactNode }) 
           </span>
         </div>
 
-        {/* app content */}
-        <div className="no-scrollbar relative h-[calc(100%-2.25rem)] overflow-y-auto">
+        {/* app content — full height on mobile, minus the mock bar on desktop.
+            Safe-area insets keep content clear of the notch / home indicator
+            (they resolve to 0 in desktop browsers, so this is harmless there). */}
+        <div
+          className="no-scrollbar relative h-full overflow-y-auto sm:h-[calc(100%-2.25rem)]"
+          style={{
+            paddingTop: "env(safe-area-inset-top)",
+            paddingBottom: "env(safe-area-inset-bottom)",
+          }}
+        >
           {children}
         </div>
+
+        {/* install-to-home-screen pill, pinned within the phone shell */}
+        <InstallPrompt />
       </div>
     </div>
   );
