@@ -75,25 +75,47 @@ async function geminiVision(req: VisionRequest): Promise<string> {
   const ai = new GoogleGenAI({ apiKey });
   const { mimeType, data } = splitDataUrl(req.imageDataUrl);
 
-  const res = await ai.models.generateContent({
-    model: req.model || process.env.GEMINI_MODEL || GEMINI_DEFAULT,
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: req.prompt }, { inlineData: { mimeType, data } }],
+  try {
+    const res = await ai.models.generateContent({
+      model: req.model || process.env.GEMINI_MODEL || GEMINI_DEFAULT,
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: req.prompt }, { inlineData: { mimeType, data } }],
+        },
+      ],
+      config: {
+        systemInstruction: req.system,
+        temperature: req.temperature ?? 0.4,
+        maxOutputTokens: req.maxTokens ?? 1024,
+        // Flash "thinks" by default and can burn the whole output budget; the
+        // structured-JSON / HTML tasks here don't need it.
+        thinkingConfig: { thinkingBudget: 0 },
       },
-    ],
-    config: {
-      systemInstruction: req.system,
-      temperature: req.temperature ?? 0.4,
-      maxOutputTokens: req.maxTokens ?? 1024,
-      // Flash "thinks" by default and can burn the whole output budget; the
-      // structured-JSON / HTML tasks here don't need it.
-      thinkingConfig: { thinkingBudget: 0 },
-    },
-  });
+    });
+    return res.text ?? "";
+  } catch (e) {
+    throw normalizeGeminiError(e);
+  }
+}
 
-  return res.text ?? "";
+/** Turn raw Gemini SDK errors (quota JSON, etc.) into a clean user message. */
+function normalizeGeminiError(e: unknown): Error {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/429|RESOURCE_EXHAUSTED|quota/i.test(msg)) {
+    const retry = msg.match(/retry(?:Delay)?["\s:]*~?\s*([\d.]+)\s*s/i);
+    const wait = retry ? ` Try again in ~${Math.ceil(Number(retry[1]))}s.` : "";
+    return new Error(
+      `Gemini's free tier is out of requests for now (it caps ${GEMINI_DEFAULT} at ~20/day).${wait} Options: wait for the daily reset, set GEMINI_MODEL=gemini-2.5-flash-lite for a much bigger free quota, or enable billing.`,
+    );
+  }
+  if (/API key|API_KEY_INVALID|permission|PERMISSION_DENIED/i.test(msg)) {
+    return new Error("Gemini rejected the API key. Check GEMINI_API_KEY in .env.local.");
+  }
+  if (/SAFETY|blocked/i.test(msg)) {
+    return new Error("Gemini blocked this image or response. Try a different screenshot.");
+  }
+  return e instanceof Error ? e : new Error(msg);
 }
 
 /* ---------------- OpenRouter (legacy, chat completions) ---------------- */
