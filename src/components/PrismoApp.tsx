@@ -81,23 +81,10 @@ export default function PrismoApp() {
     [name],
   );
 
-  const startAnalyze = (type: DesignType, src: Source) => {
-    setDemo(false);
-    setDesignType(type);
-    setSource(src);
-    setAnalysis(null);
-    setAnalyzeError(null);
-    setScreen("analyzing");
-    runAnalyze(type, src);
-  };
-
-  /** Scripted, API-free walkthrough for presenting: preset input → fake
-   *  loading → preset results (glow-up uses a preset redesign in Improve). */
-  const startDemo = () => {
+  /** Scripted, API-free analysis: fake loading → preset results. The glow-up
+   *  then uses the preset "after" (blue) in Improve. */
+  const runDemoAnalysis = () => {
     setDemo(true);
-    if (!name.trim()) setName("there");
-    setDesignType("Mobile App");
-    setSource(DEMO_SOURCE);
     setAnalysis(null);
     setAnalyzeError(null);
     setScreen("analyzing");
@@ -106,6 +93,30 @@ export default function PrismoApp() {
       setChoices(defaultChoices(DEMO_ANALYSIS));
       setScreen("results");
     }, 2600);
+  };
+
+  const startAnalyze = (type: DesignType, src: Source) => {
+    setDesignType(type);
+    setSource(src);
+    // The sample screen (the green "Send money" design) runs the deterministic
+    // demo path so its glow-up is always the exact blue redesign.
+    if (src.kind === "html" && src.payload === DEMO_SOURCE.payload) {
+      runDemoAnalysis();
+      return;
+    }
+    setDemo(false);
+    setAnalysis(null);
+    setAnalyzeError(null);
+    setScreen("analyzing");
+    runAnalyze(type, src);
+  };
+
+  /** "Watch a quick demo" — same preset before/after, straight from Welcome. */
+  const startDemo = () => {
+    if (!name.trim()) setName("there");
+    setDesignType("Mobile App");
+    setSource(DEMO_SOURCE);
+    runDemoAnalysis();
   };
 
   const openEntry = (e: HistoryEntry) => {

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { DesignType, Source } from "@/lib/types";
-import { loadSampleDataUrl } from "@/lib/sample";
+import { DEMO_SOURCE } from "@/lib/demo";
 import { cssToHtml } from "@/lib/render/htmlIR";
 import { detectSourceKind } from "@/lib/adapters";
 import { Chip, GlassButton, IconButton } from "../ui";
@@ -138,7 +138,7 @@ export default function Upload({
           </button>
         ) : (
           <button
-            onClick={async () => setSource({ kind: "raster", payload: await loadSampleDataUrl() })}
+            onClick={() => setSource(DEMO_SOURCE)}
             className="press mx-auto mt-3 block text-sm font-semibold text-[var(--ink-soft)]"
           >
             ✨ or try a sample screen
