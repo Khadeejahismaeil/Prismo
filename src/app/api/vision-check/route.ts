@@ -1,15 +1,15 @@
 import { inspectImage } from "@/lib/image";
+import { activeModel, activeProvider, callVision, missingKeyMessage, providerKeyPresent } from "@/lib/ai";
 
 /**
  * Debug endpoint: confirms the model can actually SEE the uploaded image.
- * POST { image } -> { saw, info }. `saw` is the model's literal description;
- * if it returns NO_IMAGE the model isn't receiving/parsing the picture.
+ * POST { image, model? } -> { saw, info }. `saw` is the model's literal
+ * description; if it returns NO_IMAGE the model isn't parsing the picture.
+ * Uses whichever provider AI_PROVIDER selects.
  */
-const MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-opus-4.1";
-
 export async function POST(req: Request) {
   let image = "";
-  let model = MODEL;
+  let model: string | undefined;
   try {
     const body = await req.json();
     image = body.image ?? "";
@@ -20,56 +20,23 @@ export async function POST(req: Request) {
   if (!image) return Response.json({ error: "No image provided" }, { status: 400 });
 
   const info = inspectImage(image);
+  if (!providerKeyPresent()) return Response.json({ error: missingKeyMessage(), info }, { status: 503 });
 
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) return Response.json({ error: "Missing OPENROUTER_API_KEY", info }, { status: 503 });
-
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 45_000);
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      signal: ctrl.signal,
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://prismo.local",
-        "X-Title": "Prismo",
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0,
-        max_tokens: 300,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Look at this image. List the exact visible text strings and UI elements you can see, in a short comma-separated list. If you cannot see any image at all, reply with exactly: NO_IMAGE",
-              },
-              { type: "image_url", image_url: { url: image } },
-            ],
-          },
-        ],
-      }),
+    const saw = await callVision({
+      system: "",
+      prompt:
+        "Look at this image. List the exact visible text strings and UI elements you can see, in a short comma-separated list. If you cannot see any image at all, reply with exactly: NO_IMAGE",
+      imageDataUrl: image,
+      maxTokens: 300,
+      temperature: 0,
+      model,
     });
-
-    const data = await res.json();
-    if (!res.ok) {
-      return Response.json(
-        { error: `Model error (${res.status})`, detail: JSON.stringify(data).slice(0, 400), info },
-        { status: 502 },
-      );
-    }
-    const saw: string = data?.choices?.[0]?.message?.content ?? "";
-    return Response.json({ model, info, saw });
+    return Response.json({ provider: activeProvider(), model: model || activeModel(), info, saw });
   } catch (e) {
     return Response.json(
       { error: e instanceof Error ? e.message : "Vision check failed", info },
       { status: 500 },
     );
-  } finally {
-    clearTimeout(t);
   }
 }

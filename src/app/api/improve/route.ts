@@ -7,8 +7,7 @@
  */
 
 import { inspectImage, NOT_RASTER_MESSAGE } from "@/lib/image";
-
-const MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-opus-4.1";
+import { callVision, missingKeyMessage, providerKeyPresent } from "@/lib/ai";
 
 const SYSTEM = `You are a senior product designer and front-end engineer. You recreate a UI screen from a screenshot as a single self-contained HTML document, faithfully preserving its real content (text, numbers, labels, structure) so it is recognizably the same screen, then apply specific requested improvements and strong visual-design principles (distinctiveness over templated defaults, intentional typography, clear hierarchy, restraint). You output only HTML.`;
 
@@ -104,53 +103,18 @@ export async function POST(req: Request) {
     return Response.json({ error: NOT_RASTER_MESSAGE }, { status: 415 });
   }
 
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) {
-    return Response.json(
-      { error: "Server is missing OPENROUTER_API_KEY. Add it to .env.local and restart." },
-      { status: 503 },
-    );
+  if (!providerKeyPresent()) {
+    return Response.json({ error: missingKeyMessage() }, { status: 503 });
   }
 
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 85_000);
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      signal: ctrl.signal,
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://prismo.local",
-        "X-Title": "Prismo",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        temperature: 0.5,
-        max_tokens: 4000,
-        messages: [
-          { role: "system", content: SYSTEM },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: instruction(designType, fixes) },
-              { type: "image_url", image_url: { url: image } },
-            ],
-          },
-        ],
-      }),
+    const content = await callVision({
+      system: SYSTEM,
+      prompt: instruction(designType, fixes),
+      imageDataUrl: image,
+      maxTokens: 4000,
+      temperature: 0.5,
     });
-
-    if (!res.ok) {
-      const detail = await res.text();
-      return Response.json(
-        { error: `Generation failed (${res.status})`, detail: detail.slice(0, 300) },
-        { status: 502 },
-      );
-    }
-
-    const data = await res.json();
-    const content: string = data?.choices?.[0]?.message?.content ?? "";
     const html = extractHtml(content);
     if (!html.toLowerCase().includes("<html") && !html.toLowerCase().includes("<!doctype")) {
       return Response.json({ error: "Model did not return HTML" }, { status: 502 });
@@ -163,7 +127,5 @@ export async function POST(req: Request) {
         ? e.message
         : "Generation failed";
     return Response.json({ error: msg }, { status: 500 });
-  } finally {
-    clearTimeout(t);
   }
 }

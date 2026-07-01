@@ -3,6 +3,7 @@ import { analyze as mockAnalyze } from "@/lib/mock";
 import { inspectImage, NOT_RASTER_MESSAGE } from "@/lib/image";
 import { measureDesign, type MeasuredElement, type Measurements } from "@/lib/measure";
 import { buildMarks, type MarkMap } from "@/lib/marks";
+import { callVision, missingKeyMessage, providerKeyPresent } from "@/lib/ai";
 
 /**
  * Hybrid server-side design review.
@@ -14,11 +15,9 @@ import { buildMarks, type MarkMap } from "@/lib/marks";
  * 3. The vision LLM gets the marked image + the measured facts and only does
  *    qualitative critique. Measured failures (e.g. contrast) are added by us.
  *
- * Falls back to a plain image→LLM pass if the measurement step fails.
- * Key stays server-side (OPENROUTER_API_KEY).
+ * The AI provider (Gemini / OpenRouter) is behind lib/ai.ts. Falls back to a
+ * plain image→LLM pass if the measurement step fails.
  */
-
-const MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-opus-4.1";
 
 const PRINCIPLES = `Review through these principles:
 - Distinctiveness over templated defaults; reward a specific point of view, flag generic/AI-cliché looks.
@@ -160,46 +159,6 @@ function coerceQualitative(raw: unknown, map: MarkMap, startIdx: number): { issu
   };
 }
 
-async function callModel(key: string, system: string, userText: string, imageUrl: string) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 60_000);
-  try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      signal: ctrl.signal,
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://prismo.local",
-        "X-Title": "Prismo",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        temperature: 0.4,
-        max_tokens: 1024,
-        messages: [
-          { role: "system", content: system },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: userText },
-              { type: "image_url", image_url: { url: imageUrl } },
-            ],
-          },
-        ],
-      }),
-    });
-    if (!res.ok) {
-      const detail = await res.text();
-      throw new Error(`Model request failed (${res.status}): ${detail.slice(0, 200)}`);
-    }
-    const data = await res.json();
-    return String(data?.choices?.[0]?.message?.content ?? "");
-  } finally {
-    clearTimeout(t);
-  }
-}
-
 /* ---------- fallback: plain image → LLM (no measurements) ---------- */
 function fallbackInstruction(designType: string): string {
   return `Review this ${designType} screenshot. Respond with ONLY a JSON object:
@@ -228,12 +187,8 @@ export async function POST(req: Request) {
   }
   if (!info.isRaster) return Response.json({ error: NOT_RASTER_MESSAGE }, { status: 415 });
 
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) {
-    return Response.json(
-      { error: "Server is missing OPENROUTER_API_KEY. Add it to .env.local and restart." },
-      { status: 503 },
-    );
+  if (!providerKeyPresent()) {
+    return Response.json({ error: missingKeyMessage() }, { status: 503 });
   }
 
   // ---- 1. deterministic measurements (best-effort) ----
@@ -255,7 +210,12 @@ export async function POST(req: Request) {
       // ---- 3. qualitative LLM pass (best-effort: keep the measured findings even if the model fails) ----
       let q: ReturnType<typeof coerceQualitative> | null = null;
       try {
-        const content = await callModel(key, SYSTEM, qualInstruction(designType, els, measurements), dataUrl);
+        const content = await callVision({
+          system: SYSTEM,
+          prompt: qualInstruction(designType, els, measurements),
+          imageDataUrl: dataUrl,
+          maxTokens: 1024,
+        });
         q = coerceQualitative(extractJson(content), map, det.length);
       } catch (e) {
         console.warn("[analyze] qualitative pass failed, returning measured-only:", e instanceof Error ? e.message : e);
@@ -286,7 +246,12 @@ export async function POST(req: Request) {
     }
 
     // ---- fallback: no measurements ----
-    const content = await callModel(key, SYSTEM, fallbackInstruction(designType), image);
+    const content = await callVision({
+      system: SYSTEM,
+      prompt: fallbackInstruction(designType),
+      imageDataUrl: image,
+      maxTokens: 1024,
+    });
     const q = coerceQualitative(extractJson(content), {}, 0);
     return Response.json({
       id: `a${Date.now()}`,
