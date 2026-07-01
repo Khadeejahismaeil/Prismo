@@ -45,7 +45,9 @@ export default function ScratchReveal({
 
   // Which content height drives the card right now.
   const activeH = view === "before" ? beforeH : afterHtml ? afterH : beforeH;
-  const scale = avail.w && avail.h ? Math.min(avail.w / LW, avail.h / activeH) : 0;
+  // Fit to WIDTH — the design fills the column and the page scrolls a little if
+  // it's taller than the viewport (never an internal iframe scroll).
+  const scale = avail.w ? avail.w / LW : 0;
   const cardW = Math.round(LW * scale);
   const cardH = Math.round(activeH * scale);
 
@@ -247,7 +249,7 @@ export default function ScratchReveal({
   const beforeNode = beforeHtml ? htmlFrame(beforeHtml, beforeH, setBeforeH) : before ? rasterImg(before) : null;
 
   return (
-    <div ref={fitRef} className="flex h-full w-full items-center justify-center">
+    <div ref={fitRef} className="flex w-full justify-center">
       <div
         ref={wrapRef}
         style={{ width: cardW || undefined, height: cardH || undefined }}

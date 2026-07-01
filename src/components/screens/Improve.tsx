@@ -73,7 +73,7 @@ export default function Improve({
   }, [generate]);
 
   return (
-    <div className="screen-enter flex h-full flex-col overflow-hidden px-5 pb-4 pt-3">
+    <div className="screen-enter flex min-h-full flex-col px-5 pb-4 pt-3">
       {/* header */}
       <div className="flex items-center justify-between">
         <IconButton label="Back" onClick={onBack}>
@@ -95,10 +95,10 @@ export default function Improve({
               : "All you, no edits."}
       </p>
 
-      {/* reveal fills the remaining space — the whole design, no scroll */}
-      <div className="relative mt-3 min-h-0 flex-1">
+      {/* reveal renders at full width; the page scrolls a little if it's taller */}
+      <div className="relative mt-3 flex-1">
         {status === "loading" && (
-          <div className="grid h-full w-full place-items-center rounded-3xl border border-white/60 bg-white/60">
+          <div className="grid min-h-[55vh] w-full place-items-center rounded-3xl border border-white/60 bg-white/60">
             <div className="flex flex-col items-center px-6 text-center">
               <div className="w-28" style={{ animation: "floaty 3s ease-in-out infinite" }}>
                 <PrismoEating className="h-auto w-full" />
@@ -109,7 +109,7 @@ export default function Improve({
         )}
 
         {status === "error" && (
-          <div className="grid h-full w-full place-items-center rounded-3xl border border-white/60 bg-white/60">
+          <div className="grid min-h-[55vh] w-full place-items-center rounded-3xl border border-white/60 bg-white/60">
             <div className="flex flex-col items-center px-6 text-center">
               <p className="font-display text-lg font-semibold text-[var(--ink)]">Couldn&apos;t redraw it</p>
               <p className="mt-1.5 text-[12.5px] leading-relaxed text-[var(--ink-soft)]">{error}</p>
