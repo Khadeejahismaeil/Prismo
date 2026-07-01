@@ -78,12 +78,12 @@ h2{font-size:14px;margin:22px 0 10px}
 
 export async function POST(req: Request) {
   let image = "";
-  let designType = "Mobile app";
+  let designType = "Mobile App";
   let fixes: Fix[] = [];
   try {
     const body = await req.json();
     image = body.image ?? "";
-    designType = body.designType ?? "Mobile app";
+    designType = body.designType ?? "Mobile App";
     fixes = Array.isArray(body.fixes) ? body.fixes : [];
   } catch {
     return Response.json({ error: "Invalid request body" }, { status: 400 });

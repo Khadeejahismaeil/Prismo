@@ -1,9 +1,11 @@
 export type DesignType =
-  | "Mobile app"
+  | "Mobile App"
   | "Website"
   | "Dashboard"
-  | "Slide"
-  | "Pitch deck";
+  | "Presentation"
+  | "Social Media Design"
+  | "Poster"
+  | "Other";
 
 export type Severity = "low" | "medium" | "high";
 
@@ -25,7 +27,9 @@ export type Issue = {
   y: number;
   /** 2–3 ways to fix it; the user picks one (or discards the issue). */
   solutions: Solution[];
-  /** True when this issue is a hard measurement (e.g. computed contrast), not LLM judgment. */
+  /** One clause on why this matters for the design's purpose. */
+  why?: string;
+  /** True when a hard measurement backs this issue (shows a "Measured" badge). */
   measured?: boolean;
   /** Short measured fact shown as evidence, e.g. "2.1:1 contrast (needs 4.5:1)". */
   metric?: string;
@@ -42,6 +46,8 @@ export type Analysis = {
   score: number;
   headline: string;
   summary: string;
+  /** What Prismo judged the design to be, who it's for, and its job. */
+  purpose?: string;
   strengths: string[];
   issues: Issue[];
   /** Deterministic measurements (present when the hybrid pipeline ran). */

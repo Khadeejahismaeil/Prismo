@@ -6,11 +6,13 @@ import { loadSampleDataUrl } from "@/lib/sample";
 import { Chip, GlassButton, IconButton } from "../ui";
 
 const TYPES: { label: DesignType; icon: string }[] = [
-  { label: "Mobile app", icon: "📱" },
+  { label: "Mobile App", icon: "📱" },
   { label: "Website", icon: "🖥️" },
   { label: "Dashboard", icon: "📊" },
-  { label: "Slide", icon: "📑" },
-  { label: "Pitch deck", icon: "🚀" },
+  { label: "Presentation", icon: "📽️" },
+  { label: "Social Media Design", icon: "📣" },
+  { label: "Poster", icon: "🖼️" },
+  { label: "Other", icon: "🎨" },
 ];
 
 export default function Upload({
@@ -22,7 +24,7 @@ export default function Upload({
   onAnalyze: (type: DesignType, image: string) => void;
   onHistory: () => void;
 }) {
-  const [type, setType] = useState<DesignType>("Mobile app");
+  const [type, setType] = useState<DesignType>("Mobile App");
   const [image, setImage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 

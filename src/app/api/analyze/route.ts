@@ -27,7 +27,26 @@ const PRINCIPLES = `Review through these principles:
 - Restraint; boldness in one signature element, cut decoration that serves nothing.
 - Copy is design material; plain active end-user language, specific over clever.`;
 
-const SYSTEM = `You are Prismo, a senior product designer giving a full visual UI/UX review of a screenshot. Look at the whole interface — layout, visual hierarchy, CTA prominence, component consistency, spacing and rhythm, and overall polish — not just the text. Be specific, warm, and constructive, and ground every point in what is actually visible. ${PRINCIPLES} Keep every piece of text short and concrete.`;
+const SYSTEM = `You are Prismo, a Lead Product Designer giving a senior-level critique to another designer. You reason about VISUAL DESIGN and UX first — composition, hierarchy, typography, colour, balance, and how well the design serves its purpose and audience. You are specific and honest but constructive, like a respected mentor. Deterministic measurements (contrast, font sizes, spacing) are provided ONLY as evidence to support your reasoning; they are never the review itself. ${PRINCIPLES}`;
+
+/** Design-type-specific focus. The criteria adapt to what the design is for. */
+const TYPE_GUIDANCE: Record<string, string> = {
+  "Mobile App":
+    "This is a Mobile App. Weigh thumb-reach and tap ergonomics, one clear primary action per screen, native patterns and gestures, and whether the density suits a small screen.",
+  Website:
+    "This is a Website. Weigh the above-the-fold value proposition, navigation clarity, scannability, and whether the hero does its job.",
+  Dashboard:
+    "This is a Dashboard. ALSO evaluate: data hierarchy, scanability, KPI emphasis, chart readability, and filtering usability.",
+  Presentation:
+    "This is a Presentation slide. ALSO evaluate: slide hierarchy, text density, audience readability from the back of a room, flow of information, image/chart placement, presentation storytelling, and speaker-friendliness.",
+  "Social Media Design":
+    "This is a Social Media Design. Weigh stop-the-scroll impact, a single clear message, legibility at thumbnail size, a strong focal point, and brand recognizability.",
+  Poster:
+    "This is a Poster. Weigh hierarchy read from a distance, one dominant focal point, headline impact, and legibility at a glance.",
+  Other:
+    "Infer the design's purpose and audience first, then apply the general dimensions that fit.",
+};
+const typeBlock = (t: string) => TYPE_GUIDANCE[t] ?? TYPE_GUIDANCE.Other;
 
 const clamp = (n: unknown, lo: number, hi: number, fallback: number) => {
   const v = typeof n === "number" && Number.isFinite(n) ? n : fallback;
@@ -91,59 +110,72 @@ function blendedScore(m: Measurements, craft: number): number {
   const hierarchy = ratio >= 1.8 ? 100 : ratio >= 1.4 ? 80 : ratio >= 1.15 ? 65 : 50;
   const nonNeutral = m.palette.filter((p) => !isNeutral(p.hex) && p.pct >= 4).length;
   const palette = nonNeutral <= 3 ? 100 : nonNeutral <= 5 ? 75 : 55;
+  // Visual judgment (craft) leads; measurements ground it.
   return Math.round(
-    clamp(0.35 * contrastScore + 0.2 * hierarchy + 0.15 * palette + 0.3 * craft, 0, 100, 75),
+    clamp(0.5 * craft + 0.25 * contrastScore + 0.15 * hierarchy + 0.1 * palette, 0, 100, 75),
   );
 }
 
 function metricsText(els: MeasuredElement[], m: Measurements): string {
-  const rows = els
-    .map((e) => `${e.id}: "${e.text}" | ${e.fontPx}px | ${e.contrast}:1`)
-    .join("\n");
+  // Give SIZES for hierarchy reasoning, but only a SUMMARY of contrast so the
+  // model doesn't fixate on enumerating accessibility failures.
+  const sizes = els.map((e) => `${e.id}: "${e.text}" — ${e.fontPx}px`).join("\n");
+  const textEls = els.filter((e) => e.text.length >= 2);
+  const fails = textEls
+    .filter((e) => (e.fontPx >= 28 ? !e.aaLarge : !e.aa))
+    .sort((a, b) => a.contrast - b.contrast);
+  const worst = fails.slice(0, 3).map((e) => `"${e.text}" (${e.contrast}:1)`).join(", ");
+  const acc = fails.length
+    ? `MEASURED ACCESSIBILITY (supporting evidence only): ${fails.length} of ${textEls.length} text elements fall below WCAG AA contrast — weakest: ${worst}. You may reference readability AT MOST ONCE as a supporting point; do NOT file separate contrast issues.`
+    : `MEASURED ACCESSIBILITY: text contrast largely passes WCAG AA.`;
   const pal = m.palette.map((p) => `${p.hex} ${p.pct}%`).join(", ");
-  return `The image has numbered red boxes over detected text. Use these MEASURED facts as EVIDENCE for your points (never restate them as their own issue, and never invent numbers):
-id: "text" | fontPx | contrast
-${rows}
+  return `The image has numbered red boxes over the main text elements. Element sizes (for hierarchy reasoning):
+${sizes}
+${acc}
 Palette: ${pal}`;
 }
 
 function qualInstruction(designType: string, els: MeasuredElement[], m: Measurements): string {
-  return `Give a full visual UI/UX review of this ${designType} screen. Look at the whole interface, not just the text.
+  return `You are reviewing a design the user labelled "${designType}".
+
+FIRST, identify the design's PURPOSE in one clause: what it is, who it's for, and its primary job. Review everything against that purpose.
+
+${typeBlock(designType)}
+
+Review across these dimensions WHERE APPLICABLE (skip the ones that don't fit this design): first impression, visual hierarchy, layout & composition, alignment & spacing, white space, typography, colour harmony, contrast, component consistency, CTA prominence, information architecture, readability, cognitive load, visual balance, brand consistency, accessibility, and overall polish.
 
 ${metricsText(els, m)}
 
-Examine ALL of these and surface the MOST impactful problems (mix of dimensions, not just text):
-- Layout & alignment: balance, alignment to a grid, awkward gaps, crowding, or empty dead space.
-- Visual hierarchy: does the most important element lead the eye? Are secondary elements too loud or too quiet?
-- CTA visibility: is the primary action obvious and prominent, or does it blend into the background?
-- Component consistency: consistent buttons, cards, corner radii, icon style, and type scale.
-- Spacing & rhythm: even padding/margins, comfortable breathing room, a consistent spacing scale.
-- Overall UX polish: refinement, distinctiveness vs a templated look, and the design principles above.
-
-Use the measured facts as evidence — e.g. "the greeting is both small (25px) and low-contrast (1.6:1), so the header reads as an afterthought." IMPORTANT: text contrast/readability is already fully measured and reported separately, so do NOT include any issue whose main point is contrast. Spend all of your issue slots on layout, hierarchy, CTA, consistency, spacing, and polish (you may still cite a contrast number as supporting evidence for one of those).
-
 Return ONLY a JSON object:
 {
-  "craftScore": integer 0-100 (your holistic judgment of visual + UX quality),
+  "purpose": "one clause: what this is, who it's for, its primary job",
+  "craftScore": integer 0-100 (holistic design quality for that purpose),
   "headline": short phrase, max 5 words,
-  "summary": one short sentence,
+  "summary": one sentence in a senior designer's voice,
   "strengths": array of 2-4 very short phrases,
-  "issues": array of up to 4 problems, most impactful first, spanning the dimensions above, each:
-    { "markId": integer (the numbered box the issue is about, or 0 if it concerns the whole layout/region),
+  "issues": array of the 5-6 HIGHEST-IMPACT problems only, most impactful first, each:
+    { "markId": integer (the numbered box the issue is about, or 0 for a whole-layout/region issue),
       "title": 2-4 word label,
-      "explanation": one short, plain sentence (cite a measured fact when relevant),
       "severity": "high" | "medium" | "low",
-      "solutions": array of 2-3 fixes, each { "label": 2-4 word action, "detail": one short clause } }
+      "explanation": one plain sentence describing the problem you can SEE,
+      "why": one short clause on why it matters for THIS design's purpose,
+      "solutions": array of 2-3 practical fixes, each { "label": 2-4 word action, "detail": one short clause } }
 }
 Rules:
-- Reference locations by markId. Ground every issue in what is visible.
-- If the design is genuinely strong, return few/no issues and a high craftScore.
+- Write like a Lead Product Designer giving a peer specific, actionable feedback. NO generic advice.
+- Only raise problems you can actually OBSERVE in the image. Never invent issues.
+- Reason about VISUAL DESIGN and UX first. Contrast/accessibility is ALREADY measured: mention readability AT MOST ONCE and only as a supporting point. Do NOT enumerate low-contrast elements as separate issues — the MAJORITY of your issues must be about composition, hierarchy, typography, colour, spacing, component consistency, balance, and polish.
+- At most 6 issues, highest-impact first. If the design is genuinely strong, return few issues and a high craftScore.
 - Always return valid JSON, never prose.`;
 }
 
-function coerceQualitative(raw: unknown, map: MarkMap, startIdx: number): { issues: Issue[]; craft: number; headline: string; summary: string; strengths: string[] } {
+function coerceQualitative(
+  raw: unknown,
+  map: MarkMap,
+  markEvidence: Record<number, string>,
+): { issues: Issue[]; craft: number; headline: string; summary: string; strengths: string[]; purpose?: string } {
   const r = (raw ?? {}) as Record<string, unknown>;
-  const rawIssues = Array.isArray(r.issues) ? r.issues.slice(0, 4) : [];
+  const rawIssues = Array.isArray(r.issues) ? r.issues.slice(0, 6) : [];
   const issues: Issue[] = rawIssues.map((it, i) => {
     const o = (it ?? {}) as Record<string, unknown>;
     const sols = (Array.isArray(o.solutions) ? o.solutions.slice(0, 3) : [])
@@ -154,40 +186,62 @@ function coerceQualitative(raw: unknown, map: MarkMap, startIdx: number): { issu
       .filter((s) => s.label);
     const mid = Number(o.markId);
     const pos = map[mid] ?? { x: 50, y: 50 };
+    const evidence = markEvidence[mid];
     return {
-      id: `i${startIdx + i}`,
+      id: `i${i}`,
       title: String(o.title ?? "Issue").slice(0, 40),
-      explanation: String(o.explanation ?? "").slice(0, 140),
+      explanation: String(o.explanation ?? "").slice(0, 160),
+      why: o.why ? String(o.why).slice(0, 160) : undefined,
       severity: SEVS.includes(o.severity as Severity) ? (o.severity as Severity) : "medium",
       x: pos.x,
       y: pos.y,
       solutions: sols.length ? sols : [{ id: "a", label: "Refine it", detail: "" }],
+      ...(evidence ? { metric: evidence, measured: true } : {}),
     };
   });
   return {
     issues,
     craft: Math.round(clamp(r.craftScore, 0, 100, 78)),
-    headline: String(r.headline ?? "Nice work").slice(0, 40),
-    summary: String(r.summary ?? "").slice(0, 200),
+    headline: String(r.headline ?? "Design review").slice(0, 40),
+    summary: String(r.summary ?? "").slice(0, 220),
     strengths: (Array.isArray(r.strengths) ? r.strengths.slice(0, 4) : []).map((s) => String(s).slice(0, 60)),
+    purpose: r.purpose ? String(r.purpose).slice(0, 160) : undefined,
   };
+}
+
+/** Heuristic: is this issue primarily about contrast/readability? */
+function isContrastIssue(i: Issue): boolean {
+  return /contrast|readab|legib|unreadable|invisible/i.test(`${i.title} ${i.explanation}`);
+}
+
+/** Contrast evidence keyed by mark id, to attach to the LLM's issues. */
+function contrastEvidence(els: MeasuredElement[]): Record<number, string> {
+  const ev: Record<number, string> = {};
+  for (const e of els) {
+    if (e.text.length < 2) continue;
+    const fails = e.fontPx >= 28 ? !e.aaLarge : !e.aa;
+    if (fails) ev[e.id] = `${e.contrast}:1 (needs ${e.fontPx >= 28 ? "3:1" : "4.5:1"})`;
+  }
+  return ev;
 }
 
 /* ---------- fallback: plain image → LLM (no measurements) ---------- */
 function fallbackInstruction(designType: string): string {
-  return `Give a full visual UI/UX review of this ${designType} screen — layout, visual hierarchy, CTA visibility, component consistency, spacing/rhythm, and overall polish. Respond with ONLY a JSON object:
-{ "craftScore": 0-100, "headline": "<=5 words", "summary": "one sentence", "strengths": ["2-4 short"],
-  "issues": [ up to 4 { "markId": 0, "title": "2-4 words", "explanation": "one sentence", "severity": "high|medium|low", "solutions": [ {"label":"2-4 words","detail":"short"} ] } ] }
-Ground every issue in what is visible, spanning the dimensions above. If strong, few/no issues + high craftScore. Always valid JSON.`;
+  return `You are a Lead Product Designer reviewing a design the user labelled "${designType}". ${typeBlock(designType)}
+
+First identify the design's purpose, then critique visual design and UX: first impression, hierarchy, layout, spacing, typography, colour, component consistency, CTA prominence, readability, balance, and polish. Respond with ONLY a JSON object:
+{ "purpose": "what this is, who for, its job", "craftScore": 0-100, "headline": "<=5 words", "summary": "one sentence", "strengths": ["2-4 short"],
+  "issues": [ up to 6 { "markId": 0, "title": "2-4 words", "severity": "high|medium|low", "explanation": "one sentence you can SEE", "why": "why it matters", "solutions": [ {"label":"2-4 words","detail":"short"} ] } ] }
+Only observable problems, highest-impact first, no generic advice. Always valid JSON.`;
 }
 
 export async function POST(req: Request) {
   let image = "";
-  let designType = "Mobile app";
+  let designType = "Mobile App";
   try {
     const body = await req.json();
     image = body.image ?? "";
-    designType = body.designType ?? "Mobile app";
+    designType = body.designType ?? "Mobile App";
   } catch {
     return Response.json({ error: "Invalid request body" }, { status: 400 });
   }
@@ -216,50 +270,62 @@ export async function POST(req: Request) {
 
   try {
     if (measurements && measurements.elements.length > 0) {
-      // ---- 2. set-of-marks ----
+      // ---- 2. set-of-marks + contrast evidence keyed by mark id ----
       const els = [...measurements.elements].sort((a, b) => b.fontPx - a.fontPx).slice(0, 16);
       const { dataUrl, map } = await buildMarks(decode(image), measurements.width, measurements.height, els);
-      const det = measuredIssues(measurements);
+      const evidence = contrastEvidence(els);
 
-      // ---- 3. qualitative LLM pass (best-effort: keep the measured findings even if the model fails) ----
+      // ---- 3. senior-designer visual review; measurements are only evidence ----
       let q: ReturnType<typeof coerceQualitative> | null = null;
       try {
         const content = await callVision({
           system: SYSTEM,
           prompt: qualInstruction(designType, els, measurements),
           imageDataUrl: dataUrl,
-          maxTokens: 1024,
+          maxTokens: 1500,
         });
-        q = coerceQualitative(extractJson(content), map, det.length);
+        q = coerceQualitative(extractJson(content), map, evidence);
       } catch (e) {
-        console.warn("[analyze] qualitative pass failed, returning measured-only:", e instanceof Error ? e.message : e);
+        console.warn("[analyze] review failed, returning measured-only:", e instanceof Error ? e.message : e);
       }
 
       const rank: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
-      const issues = (q ? [...det, ...q.issues] : det)
-        .sort((a, b) => rank[a.severity] - rank[b.severity])
-        .slice(0, 6);
-      const score = blendedScore(measurements, q ? q.craft : 72);
-      const analysis: Analysis = {
-        id: `a${Date.now()}`,
-        score,
-        headline: q
-          ? det.length && q.headline === "Nice work"
-            ? "A few quick wins"
-            : q.headline
-          : det.length
-            ? "Measured a few fixes"
-            : "Measurements look clean",
-        summary: q?.summary || "Here are the measured findings for this screen.",
-        strengths: q?.strengths.length ? q.strengths : ["Clean overall composition"],
-        issues,
-        metrics: {
-          contrastFailRate: measurements.contrastFailRate,
-          textElements: measurements.elements.length,
-          palette: measurements.palette,
-        },
+      const metrics = {
+        contrastFailRate: measurements.contrastFailRate,
+        textElements: measurements.elements.length,
+        palette: measurements.palette,
       };
-      return Response.json(analysis);
+
+      if (q) {
+        // keep at most one contrast/readability issue; the rest must be visual/UX
+        let contrastKept = 0;
+        const issues = q.issues
+          .filter((i) => (isContrastIssue(i) ? contrastKept++ < 1 : true))
+          .sort((a, b) => rank[a.severity] - rank[b.severity])
+          .slice(0, 6);
+        return Response.json({
+          id: `a${Date.now()}`,
+          score: blendedScore(measurements, q.craft),
+          headline: q.headline,
+          summary: q.summary || "Here's how this reads as a designer.",
+          purpose: q.purpose,
+          strengths: q.strengths.length ? q.strengths : ["Clean overall composition"],
+          issues,
+          metrics,
+        } satisfies Analysis);
+      }
+
+      // model unavailable → still return the trustworthy measured findings
+      const det = measuredIssues(measurements);
+      return Response.json({
+        id: `a${Date.now()}`,
+        score: blendedScore(measurements, 72),
+        headline: det.length ? "Measured a few fixes" : "Measurements look clean",
+        summary: "The review model was unavailable, so these are the measured findings only.",
+        strengths: ["Clean overall composition"],
+        issues: det,
+        metrics,
+      } satisfies Analysis);
     }
 
     // ---- fallback: no measurements ----
@@ -267,14 +333,15 @@ export async function POST(req: Request) {
       system: SYSTEM,
       prompt: fallbackInstruction(designType),
       imageDataUrl: image,
-      maxTokens: 1024,
+      maxTokens: 1500,
     });
-    const q = coerceQualitative(extractJson(content), {}, 0);
+    const q = coerceQualitative(extractJson(content), {}, {});
     return Response.json({
       id: `a${Date.now()}`,
       score: q.craft,
       headline: q.headline,
       summary: q.summary,
+      purpose: q.purpose,
       strengths: q.strengths.length ? q.strengths : ["Clean overall composition"],
       issues: q.issues,
     } satisfies Analysis);

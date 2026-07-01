@@ -129,6 +129,11 @@ export default function Results({
         <p className="mt-2 text-[14px] leading-relaxed text-[var(--ink-soft)]">
           {analysis.summary}
         </p>
+        {analysis.purpose && (
+          <p className="mt-3 rounded-2xl bg-white/55 px-3 py-2 text-[12.5px] leading-snug text-[var(--ink)]">
+            <span className="font-semibold">Prismo sees</span> {analysis.purpose}
+          </p>
+        )}
       </div>
 
       <Strengths items={analysis.strengths} />
@@ -226,6 +231,12 @@ export default function Results({
                       <p className="mt-1.5 text-[13.5px] leading-relaxed text-[var(--ink-soft)]">
                         {issue.explanation}
                       </p>
+                      {issue.why && (
+                        <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--ink-soft)]">
+                          <span className="font-semibold text-[var(--ink)]">Why it matters:</span>{" "}
+                          {issue.why}
+                        </p>
+                      )}
                       {issue.metric && (
                         <p className="mt-2 inline-block rounded-lg bg-[var(--ink)]/5 px-2 py-1 font-mono text-[11px] font-medium text-[var(--ink)]">
                           {issue.metric}

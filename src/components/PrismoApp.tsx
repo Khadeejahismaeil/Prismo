@@ -28,7 +28,7 @@ function defaultChoices(analysis: Analysis): Choices {
 export default function PrismoApp() {
   const [screen, setScreen] = useState<Screen>("welcome");
   const [name, setName] = useState("");
-  const [designType, setDesignType] = useState<DesignType>("Mobile app");
+  const [designType, setDesignType] = useState<DesignType>("Mobile App");
   const [image, setImage] = useState<string>("");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [choices, setChoices] = useState<Choices>({});
